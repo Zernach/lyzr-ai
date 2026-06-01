@@ -100,6 +100,46 @@ say "Generating firebase/requirements.txt"
 } > firebase/requirements.txt
 ok "Wrote firebase/requirements.txt"
 
+# ─── build firebase/venv ──────────────────────────────────────────────────────
+# Firebase Functions CLI introspects the Python source through a local venv
+# (firebase/venv/bin/python) — it imports main.py to discover decorated
+# handlers. The venv must exist and contain every dep imported by main.py,
+# even though Cloud Build re-resolves at deploy time from requirements.txt.
+#
+# The runtime in firebase.json is python312, so we prefer python3.12 locally
+# to keep ABI/wheel compatibility tight. We fall back to 3.11 / 3.13 only if
+# 3.12 isn't installed.
+PY_BIN=""
+for cand in python3.12 python3.13 python3.11 python3.10; do
+  if command -v "$cand" >/dev/null 2>&1; then PY_BIN="$cand"; break; fi
+done
+[[ -n "$PY_BIN" ]] || die "No suitable Python found (need 3.10–3.13)."
+PY_VER="$("$PY_BIN" -c 'import sys;print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+
+VENV="firebase/venv"
+VENV_PY_VER_FILE="$VENV/.py-version"
+if [[ -x "$VENV/bin/python" && -f "$VENV_PY_VER_FILE" && "$(cat "$VENV_PY_VER_FILE")" == "$PY_VER" ]]; then
+  : # reuse existing venv
+else
+  say "Creating firebase/venv with $PY_BIN ($PY_VER)"
+  rm -rf "$VENV"
+  "$PY_BIN" -m venv "$VENV"
+  echo "$PY_VER" > "$VENV_PY_VER_FILE"
+fi
+
+# Install deps only if requirements.txt changed since last install.
+HASH_FILE="$VENV/.deps-hash"
+NEW_HASH="$(shasum -a 256 firebase/requirements.txt | awk '{print $1}')"
+if [[ ! -f "$HASH_FILE" || "$(cat "$HASH_FILE")" != "$NEW_HASH" ]]; then
+  say "Installing Python deps into firebase/venv (this can take a minute)"
+  "$VENV/bin/python" -m pip install --quiet --upgrade pip
+  "$VENV/bin/pip" install --quiet -r firebase/requirements.txt
+  echo "$NEW_HASH" > "$HASH_FILE"
+  ok "venv ready"
+else
+  ok "venv up-to-date (deps unchanged)"
+fi
+
 if [[ "$STAGE_ONLY" == "1" ]]; then
   ok "--stage-only: skipping deploy."
   exit 0

@@ -16,3 +16,5 @@
 | Use yarn (not npm) for frontend in scripts/start.sh; fix ROOT_DIR to repo root | 2026-06-01 16:48:20 MDT | 45s          | 4200       |
 | interactive.sh: no default cursor/highlight on startup; start not pre-focused until arrow keys | 2026-06-01 17:05:00 MDT | 60s          | 8500       |
 | Fix interactive menu: ←/→ move (not toggle); single-select; Enter runs one command only | 2026-06-01 16:55:23 MDT | 90s          | 7200       |
+| Undo previous commit; squash staged fixes; force push main | 2026-06-01 17:10:00 MDT | 30s          | 3500       |
+| deploy_backend.sh: build firebase/venv (python3.12, cached by deps-hash) so Firebase CLI source analysis can locate firebase-functions SDK | 2026-06-01 16:57:34 MDT | 120s         | 14500      |
