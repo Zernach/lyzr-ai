@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Interactive Lyzr command menu.
 #
-# Arrow keys / j-k       → move cursor
-# Space / ← / →          → toggle selection (multi-select, ordered)
-# Enter                  → run selected commands in order
+# Arrow keys / j-k / ← → → move cursor
+# Space                  → select/deselect current row (one at a time)
+# Enter                  → run the selected row (or the highlighted row)
 # q / Esc                → quit
 
 set -euo pipefail
@@ -38,7 +38,7 @@ CMD_ACTIONS=(
 )
 
 CMD_COUNT=${#CMD_KEYS[@]}
-CURSOR=0
+CURSOR=-1
 SELECTION_ORDER=()
 
 # ─── terminal helpers ───────────────────────────────────────────────────────
@@ -74,20 +74,13 @@ selection_position() {
   return 1
 }
 
-toggle_current() {
-  local i new=()
-  local found=0
-  for i in "${SELECTION_ORDER[@]:-}"; do
-    if [[ "$i" == "$CURSOR" ]]; then
-      found=1
-    else
-      new+=("$i")
-    fi
-  done
-  if [[ $found -eq 0 ]]; then
-    new+=("$CURSOR")
+select_current() {
+  [[ $CURSOR -ge 0 ]] || return 0
+  if is_selected "$CURSOR"; then
+    SELECTION_ORDER=()
+  else
+    SELECTION_ORDER=("$CURSOR")
   fi
-  SELECTION_ORDER=("${new[@]:-}")
 }
 
 # ─── render ─────────────────────────────────────────────────────────────────
@@ -96,7 +89,7 @@ draw() {
   clear_screen
   move_to 1
   printf '%s%sLyzr%s\n'  "$BOLD" "$CYAN" "$RESET"
-  printf '%sSpace / ← / →: toggle  •  ↑ / ↓: move  •  Enter: run  •  q: quit%s\n\n' "$DIM" "$RESET"
+  printf '%s↑↓←→ / jk: move  •  Space: select  •  Enter: run  •  q: quit%s\n\n' "$DIM" "$RESET"
 
   local i marker order_text label desc key line
   for (( i=0; i<CMD_COUNT; i++ )); do
@@ -112,7 +105,7 @@ draw() {
     fi
     line="$(printf ' %s %s  %-16s  %s  %s(%s)%s' \
       "$order_text" "$marker" "$key" "$label" "$DIM" "$desc" "$RESET")"
-    if [[ $i -eq $CURSOR ]]; then
+    if [[ $CURSOR -ge 0 && $i -eq $CURSOR ]]; then
       printf '%s%s%s%s\n' "$CYAN" "$REVERSE" "$line" "$RESET"
     else
       printf '%s\n' "$line"
@@ -170,10 +163,25 @@ while true; do
   draw
   read_key || continue
   case "$REPLY" in
-    UP|k)      CURSOR=$(( (CURSOR - 1 + CMD_COUNT) % CMD_COUNT )) ;;
-    DOWN|j)    CURSOR=$(( (CURSOR + 1) % CMD_COUNT )) ;;
-    LEFT|RIGHT|" ") toggle_current ;;
+    UP|k|LEFT)
+      if [[ $CURSOR -lt 0 ]]; then
+        CURSOR=$((CMD_COUNT - 1))
+      else
+        CURSOR=$(( (CURSOR - 1 + CMD_COUNT) % CMD_COUNT ))
+      fi
+      ;;
+    DOWN|j|RIGHT)
+      if [[ $CURSOR -lt 0 ]]; then
+        CURSOR=0
+      else
+        CURSOR=$(( (CURSOR + 1) % CMD_COUNT ))
+      fi
+      ;;
+    " ") select_current ;;
     ""|$'\n'|$'\r') # Enter
+      if [[ ${#SELECTION_ORDER[@]} -eq 0 && $CURSOR -ge 0 ]]; then
+        SELECTION_ORDER=("$CURSOR")
+      fi
       if [[ ${#SELECTION_ORDER[@]} -gt 0 ]]; then
         break
       fi

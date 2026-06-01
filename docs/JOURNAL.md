@@ -14,3 +14,5 @@
 | Create scripts/lyzr.sh — interactive arrow-key menu with cyan selector for start / deploy-frontend / deploy-backend / deploy-both | 2026-06-01 16:24:30 MDT | 180s         | 28000      |
 | Set up Firebase Functions deploy for FastAPI backend: root package.json pins firebase-tools@15.18.0, firebase/main.py wraps FastAPI via a2wsgi, firebase.json + .firebaserc (project lyzr-ai-demo), scripts/deploy_backend.sh stages backend+generates requirements+deploys | 2026-06-01 16:39:23 MDT | 480s         | 62000      |
 | Use yarn (not npm) for frontend in scripts/start.sh; fix ROOT_DIR to repo root | 2026-06-01 16:48:20 MDT | 45s          | 4200       |
+| interactive.sh: no default cursor/highlight on startup; start not pre-focused until arrow keys | 2026-06-01 17:05:00 MDT | 60s          | 8500       |
+| Fix interactive menu: ←/→ move (not toggle); single-select; Enter runs one command only | 2026-06-01 16:55:23 MDT | 90s          | 7200       |
