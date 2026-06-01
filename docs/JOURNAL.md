@@ -19,3 +19,6 @@
 | Undo previous commit; squash staged fixes; force push main | 2026-06-01 17:10:00 MDT | 30s          | 3500       |
 | deploy_backend.sh: build firebase/venv (python3.12, cached by deps-hash) so Firebase CLI source analysis can locate firebase-functions SDK | 2026-06-01 16:57:34 MDT | 120s         | 14500      |
 | Add frontend/src/config.ts with ENV flag (local | dev) selecting BACKEND_URL (localhost:8000 vs https://lyzr-ai-demo.web.app); api.ts now calls ${BACKEND_URL}/api/underwrite | 2026-06-01 17:13:02 MDT | 90s          | 13500      |
+| firebase/main.py: configure CorsOptions on api fn (lyzr-ai-demo.web.app, .firebaseapp.com, http://localhost:5173) so preflights succeed through Hosting rewrite | 2026-06-01 17:18:00 MDT | 60s          | 9500       |
+| Fix deploy-frontend Permission denied: write minimal scripts/deploy_frontend.sh (yarn build && wrangler pages deploy --commit-dirty=true) and chmod +x | 2026-06-01 17:21:43 MDT | 150s         | 14000      |
+| Simplify deploy_frontend.sh to cd into frontend/ and run `yarn deploy` (single source of truth in frontend/package.json) | 2026-06-01 17:23:58 MDT | 30s          | 3500       |

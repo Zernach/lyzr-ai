@@ -30,6 +30,15 @@ _wsgi_app = ASGIMiddleware(_fastapi_app)
     secrets=["LYZR_API_KEY", "LYZR_AGENT_ID"],
     memory=options.MemoryOption.MB_512,
     timeout_sec=120,
+    cors=options.CorsOptions(
+        cors_origins=[
+            "https://lyzr-ai-demo.web.app",
+            "https://lyzr-ai-demo.firebaseapp.com",
+            "http://localhost:5173",
+            "https://lyzr.pages.dev",
+        ],
+        cors_methods=["get", "post", "options"],
+    ),
 )
 def api(req: https_fn.Request) -> https_fn.Response:
     return Response.from_app(_wsgi_app, req.environ)
