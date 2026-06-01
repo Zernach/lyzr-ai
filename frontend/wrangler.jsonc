@@ -4,6 +4,6 @@
   "compatibility_date": "2026-06-01",
   "pages_build_output_dir": "./dist",
   "vars": {
-    "BACKEND_URL": "https://api-cvcqkzsqeq-uc.a.run.app"
+    "BACKEND_URL": "https://lyzr-ai-demo.web.app"
   }
 }
