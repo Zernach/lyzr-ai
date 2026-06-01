@@ -1,0 +1,29 @@
+{
+  "functions": [
+    {
+      "source": "firebase",
+      "codebase": "default",
+      "runtime": "python312",
+      "ignore": [
+        "venv",
+        ".venv",
+        "__pycache__",
+        "*.pyc",
+        ".pytest_cache",
+        ".env",
+        ".env.local",
+        "requirements.txt.in"
+      ]
+    }
+  ],
+  "hosting": {
+    "public": "firebase/hosting",
+    "ignore": ["firebase.json", "**/.*"],
+    "rewrites": [
+      {
+        "source": "**",
+        "function": "api"
+      }
+    ]
+  }
+}

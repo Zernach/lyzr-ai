@@ -1,0 +1,9 @@
+# Firebase-specific Python dependencies for the Cloud Function wrapper.
+# `scripts/deploy_backend.sh` concatenates this file with
+# `backend/requirements.txt` to produce `firebase/requirements.txt` at deploy
+# time, so backend deps stay a single source of truth in backend/.
+#
+# Versions pinned per CLAUDE.md 7-day quarantine rule (no release younger
+# than 7 days; checked 2026-06-01).
+firebase-functions==0.5.0
+a2wsgi==1.10.10
