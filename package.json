@@ -1,0 +1,12 @@
+{
+  "name": "lyzr-ai",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Repo-level tooling (firebase-tools pinned for reproducible backend deploys).",
+  "scripts": {
+    "deploy:backend": "./scripts/deploy_backend.sh"
+  },
+  "devDependencies": {
+    "firebase-tools": "15.18.0"
+  }
+}

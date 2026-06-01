@@ -11,3 +11,6 @@
 | Finish wrangler setup in frontend for Cloudflare Pages deploy (wrangler.jsonc, _redirects SPA fallback, pin wrangler dep, ignore .wrangler) | 2026-06-01 16:15:28 MDT | 180s         | 22000      |
 | Add 7-day quarantine rule for npm/PyPI installs in frontend & backend (CLAUDE.md, AGENTS.md, both READMEs) | 2026-06-01 16:18:17 MDT | 90s          | 14000      |
 | Add Pages Function at functions/api/[[path]].ts to proxy /api/* to BACKEND_URL env var, wire var into wrangler.jsonc | 2026-06-01 16:19:20 MDT | 90s          | 17000      |
+| Create scripts/lyzr.sh — interactive arrow-key menu with cyan selector for start / deploy-frontend / deploy-backend / deploy-both | 2026-06-01 16:24:30 MDT | 180s         | 28000      |
+| Set up Firebase Functions deploy for FastAPI backend: root package.json pins firebase-tools@15.18.0, firebase/main.py wraps FastAPI via a2wsgi, firebase.json + .firebaserc (project lyzr-ai-demo), scripts/deploy_backend.sh stages backend+generates requirements+deploys | 2026-06-01 16:39:23 MDT | 480s         | 62000      |
+| Use yarn (not npm) for frontend in scripts/start.sh; fix ROOT_DIR to repo root | 2026-06-01 16:48:20 MDT | 45s          | 4200       |
