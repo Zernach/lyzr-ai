@@ -29,7 +29,7 @@ _wsgi_app = ASGIMiddleware(_fastapi_app)
 @https_fn.on_request(
     secrets=["LYZR_API_KEY", "LYZR_AGENT_ID"],
     memory=options.MemoryOption.MB_512,
-    timeout_sec=120,
+    timeout_sec=3600,
     cors=options.CorsOptions(
         cors_origins=[
             "https://lyzr-ai-demo.web.app",

@@ -87,7 +87,7 @@ def _get_agent() -> Any:
         return _agent
     if not LYZR_API_KEY or not LYZR_AGENT_ID:
         raise HTTPException(status_code=500, detail="Lyzr credentials not configured.")
-    _studio = Studio(api_key=LYZR_API_KEY, env=LYZR_ENV, timeout=180)
+    _studio = Studio(api_key=LYZR_API_KEY, env=LYZR_ENV, timeout=3600)
     _agent = _studio.get_agent(LYZR_AGENT_ID)
     return _agent
 
