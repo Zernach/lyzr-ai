@@ -92,11 +92,8 @@ a {
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background:
-    radial-gradient(circle at 30% 30%, rgba(125, 235, 255, 0.95), rgba(125, 235, 255, 0.25) 60%, transparent 75%),
-    linear-gradient(135deg, #1c1c1c, #0b0d10);
-  border: 1px solid rgba(125, 235, 255, 0.35);
-  box-shadow: var(--shadow-arctic);
+  object-fit: contain;
+  display: block;
 }
 
 .brand-title {

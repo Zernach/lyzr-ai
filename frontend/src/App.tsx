@@ -50,7 +50,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <div className="brand-mark" />
+          <img className="brand-mark" src="/lyzr-icon.png" alt="Lyzr" />
           <div>
             <div className="brand-title">Lyzr Underwriting Copilot</div>
             <div className="brand-sub">Auto Loan · Agentic Decision Support</div>
