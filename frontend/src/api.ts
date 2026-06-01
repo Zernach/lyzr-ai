@@ -1,3 +1,5 @@
+import { BACKEND_URL } from "./config";
+
 export interface UnderwriteResponse {
   decision: "YES" | "NO";
   status: string;
@@ -15,7 +17,7 @@ export async function underwrite(
   rules: string,
   applicant: string
 ): Promise<UnderwriteResponse> {
-  const res = await fetch("/api/underwrite", {
+  const res = await fetch(`${BACKEND_URL}/api/underwrite`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ rules, applicant }),

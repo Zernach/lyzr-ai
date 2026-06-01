@@ -18,3 +18,4 @@
 | Fix interactive menu: ←/→ move (not toggle); single-select; Enter runs one command only | 2026-06-01 16:55:23 MDT | 90s          | 7200       |
 | Undo previous commit; squash staged fixes; force push main | 2026-06-01 17:10:00 MDT | 30s          | 3500       |
 | deploy_backend.sh: build firebase/venv (python3.12, cached by deps-hash) so Firebase CLI source analysis can locate firebase-functions SDK | 2026-06-01 16:57:34 MDT | 120s         | 14500      |
+| Add frontend/src/config.ts with ENV flag (local | dev) selecting BACKEND_URL (localhost:8000 vs https://lyzr-ai-demo.web.app); api.ts now calls ${BACKEND_URL}/api/underwrite | 2026-06-01 17:13:02 MDT | 90s          | 13500      |
