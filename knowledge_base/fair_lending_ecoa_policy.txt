@@ -1,0 +1,94 @@
+FAIR LENDING AND ECOA POLICY
+
+Document owner: Compliance
+Version: 1.0
+Status: Approved for knowledge base use
+
+1. Purpose
+This policy defines the fair lending controls that apply to all auto loan
+recommendations, underwriting workflows, and AI-assisted decision support.
+
+2. Core rule
+Credit decisions and recommendations must be based only on legitimate
+creditworthiness, affordability, collateral, fraud, and verification factors.
+
+3. Prohibited considerations
+Do not consider any protected characteristic or direct proxy for a protected
+characteristic, including:
+- Race
+- Color
+- Religion
+- National origin
+- Sex
+- Marital status
+- Age, except where permitted by law
+- Receipt of public assistance
+- Good-faith exercise of rights under consumer credit laws
+
+4. AI system restrictions
+AI systems must not:
+- Make final legal credit decisions without approved governance
+- Use protected traits in prompts, features, or outputs
+- Infer protected traits from names, photos, language, geolocation, schools,
+  browsing behavior, social profile data, or other proxy signals
+- Produce vague recommendations such as "bad profile" or "high risk person"
+- Override written policy without documented exception approval
+
+5. Acceptable underwriting inputs
+The following categories may be used when verified and relevant:
+- Credit score and tradeline history
+- Verified income and debt obligations
+- Loan amount, term, and payment affordability
+- Vehicle value, age, mileage, and condition
+- Identity and fraud checks
+- Prior repayment performance where legally permissible
+
+6. Consistency requirement
+Similarly situated applicants must be treated consistently. If two applications
+have materially similar credit and affordability facts, they should produce the
+same recommendation category unless a documented policy exception applies.
+
+7. Adverse action specificity
+If an application is declined, counteroffered, or otherwise receives less
+favorable terms, the explanation must use specific policy-based reasons.
+Examples:
+- Excessive debt obligations relative to income
+- Credit score below minimum program threshold
+- Loan-to-value exceeds policy limit
+- Income could not be verified
+
+Do not use vague explanations such as:
+- Poor profile
+- Risk concerns
+- Failed AI review
+- Not a fit
+
+8. Manual review requirement
+Escalate to manual review if there is any concern that:
+- A recommendation may be influenced by a proxy for a protected trait
+- The reason code is not sufficiently specific
+- The facts are incomplete or contradictory
+- The output is inconsistent with similar cases
+
+9. Audit requirements
+Every recommendation must retain:
+- Applicant facts actually used
+- Policy sections retrieved or applied
+- Recommendation category
+- Specific reason codes if adverse action is possible
+- Identity of reviewer or system that produced the recommendation
+
+10. Safe language for AI outputs
+Preferred phrasing:
+- "Based on verified financial information and retrieved underwriting policy..."
+- "Manual review is required because income verification is incomplete."
+- "The recommendation does not rely on protected characteristics."
+
+Prohibited phrasing:
+- "The applicant seems unreliable."
+- "The neighborhood appears risky."
+- "The applicant does not fit our customer profile."
+
+11. Escalation
+Any suspected disparate treatment, use of proxy data, or unexplained model
+behavior must be escalated to Compliance before a final action is taken.

@@ -1,0 +1,128 @@
+AUTO LOAN UNDERWRITING POLICY
+
+Document owner: Credit Risk
+Version: 1.0
+Status: Approved for knowledge base use
+
+1. Purpose
+This policy defines the baseline underwriting standards for consumer auto loans.
+It is intended for use by underwriters, rules engines, and AI support systems that
+produce preliminary recommendations. It does not authorize fully automated final
+credit decisions without an approved human or rules-engine checkpoint.
+
+2. Decision categories
+Applications must be classified into one of the following categories:
+- Preliminary approve
+- Conditional approve
+- Manual review
+- Decline candidate
+
+3. Core underwriting factors
+Every recommendation must consider all of the following:
+- Credit score
+- Debt-to-income ratio (DTI)
+- Loan-to-value ratio (LTV)
+- Verified gross monthly income
+- Employment or income stability
+- Recent delinquencies or derogatory events
+- Requested term and payment affordability
+- Vehicle eligibility and valuation
+
+4. Credit score bands
+Use score bands as a starting point only. They are not automatic decisions.
+
+Band A: 740 and above
+- Risk level: low
+- Eligible for standard approval review
+- Best pricing and longest available terms may be considered
+
+Band B: 670 to 739
+- Risk level: moderate
+- Eligible for standard approval review
+
+Band C: 580 to 669
+- Risk level: elevated
+- Requires tighter DTI, lower LTV, or compensating factors
+- Conditional approval or manual review is common
+
+Band D: below 580
+- Risk level: high
+- Requires manual review before any approval recommendation
+- Decline is likely unless strong compensating factors exist
+
+5. Debt-to-income limits
+DTI is calculated as total monthly debt obligations divided by verified gross monthly income.
+
+Maximum DTI by recommendation path:
+- Preliminary approve: 40 percent
+- Conditional approve: 45 percent
+- Manual review threshold: over 45 percent and up to 50 percent
+- Decline candidate: over 50 percent unless a documented exception is approved
+
+6. Loan-to-value limits
+LTV is calculated as total financed amount divided by approved vehicle value.
+
+Maximum LTV by vehicle class:
+- New vehicle: 115 percent
+- Used vehicle up to 5 model years old: 110 percent
+- Used vehicle 6 to 8 model years old: 100 percent
+- Used vehicle older than 8 model years: manual review only
+
+If score band is C or D, reduce the maximum LTV by 5 percentage points.
+
+7. Income and affordability requirements
+- Minimum verified gross monthly income: 1,800 dollars
+- Payment-to-income target: 15 percent or less of gross monthly income
+- Payment-to-income above 20 percent requires manual review
+- Unverified income cannot be used for final recommendation
+
+8. Term limits
+- New vehicle: up to 72 months
+- Used vehicle up to 5 model years old: up to 60 months
+- Used vehicle older than 5 model years: up to 48 months
+- Terms above these limits require manual review and documented justification
+
+9. Compensating factors
+Compensating factors may support conditional approval or manual review outcomes:
+- Down payment of 15 percent or more
+- Verified stable employment or income history of at least 12 months
+- Significant liquid reserves
+- Strong recent payment history
+- Qualified co-borrower or co-signer
+- Lower-than-requested loan amount accepted by applicant
+
+10. Automatic manual review triggers
+Escalate to manual review if any of the following are true:
+- Credit score below 580
+- DTI above 45 percent
+- LTV above standard policy limits
+- Income cannot be fully verified
+- Prior repossession within 24 months
+- Bankruptcy discharged within 24 months
+- Thin credit file with limited tradeline depth
+- Vehicle outside standard age or mileage policy
+
+11. Decline candidate triggers
+An application is a decline candidate when one or more of the following apply and
+no approved exception exists:
+- DTI above 50 percent
+- Material misrepresentation or inconsistent application data
+- Inability to verify identity, income, or residence
+- Vehicle collateral does not meet eligibility standards
+- Payment affordability is clearly unsustainable
+- Multiple severe recent delinquencies or active repossession exposure
+
+12. Output requirements for AI or assisted review
+Any AI-generated recommendation must include:
+- Recommendation category
+- Relevant score band
+- DTI calculation and result
+- LTV calculation and result
+- Income verification status
+- Missing information
+- Whether manual review is required
+- Specific policy-based reasons for the recommendation
+
+13. Fair lending reminder
+Protected characteristics and prohibited proxy variables must never be used in
+recommendation logic. See the fair lending and ECOA policy for complete rules.

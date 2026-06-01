@@ -1,0 +1,68 @@
+EXCEPTION AND MANUAL REVIEW POLICY
+
+Document owner: Credit Risk and Compliance
+Version: 1.0
+Status: Approved for knowledge base use
+
+1. Purpose
+This policy defines when an application must be escalated for manual review and
+how policy exceptions are documented and approved.
+
+2. Manual review principle
+Manual review is required whenever the application falls outside standard policy,
+contains incomplete information, or raises fairness, fraud, or interpretation
+concerns that should not be resolved automatically.
+
+3. Required manual review triggers
+Escalate when any of the following occur:
+- Credit score below 580
+- DTI above 45 percent
+- LTV above the standard cap for the vehicle class
+- Income verification is partial or unavailable
+- Bankruptcy, repossession, or severe recent delinquency requires judgment
+- Application data is contradictory or suspicious
+- Vehicle collateral is unusual, older, high-mileage, or otherwise non-standard
+- Any fair lending concern exists
+- AI output is vague, conflicting, or unsupported by retrieved policy
+
+4. Permitted exception categories
+Exceptions may be considered only for:
+- Slightly above-policy DTI with strong compensating factors
+- Slightly above-policy LTV with larger down payment or lower loss exposure
+- Limited credit history offset by stable income and reserves
+- Term adjustment, loan amount reduction, or down payment increase
+
+5. Prohibited exceptions
+Do not approve exceptions that:
+- Rely on protected traits or proxy attributes
+- Ignore inability to verify identity or income
+- Override fraud concerns without resolution
+- Depend on unsupported collateral values
+
+6. Required exception memo fields
+Every exception request must document:
+- Policy rule exceeded
+- Amount of variance from policy
+- Compensating factors
+- Residual risks
+- Specific approval or denial decision
+- Reviewer name and approval timestamp
+
+7. AI system behavior
+If a case meets any manual review trigger, the AI must not present the result as
+final approval. It must state:
+- "Manual review required"
+- Which policy trigger caused escalation
+- What information or approval is still needed
+
+8. Approval authority
+- Frontline automated or assisted workflow: may recommend only
+- Senior underwriter: may approve standard manual review decisions
+- Credit manager or delegated authority: required for formal policy exceptions
+
+9. Monitoring
+Exception volume and override patterns must be monitored for:
+- Risk drift
+- Inconsistent treatment
+- Weak controls
+- Possible fair lending concerns

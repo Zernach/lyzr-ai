@@ -1,0 +1,113 @@
+ADVERSE ACTION REASON CATALOG
+
+Document owner: Compliance Operations
+Version: 1.0
+Status: Approved for knowledge base use
+
+1. Purpose
+This catalog provides standardized, specific, and policy-grounded reasons for
+declines, counteroffers, and other adverse or less favorable credit outcomes.
+
+2. Usage rules
+- Use the most specific reasons supported by verified facts
+- Do not use reasons that are not documented in the file
+- Do not use more reasons than necessary; one to four reasons is typical
+- If the file is incomplete, use a verification-related reason instead of
+  guessing at a credit weakness
+
+3. Reason codes
+
+AA-101
+Title: Credit score below minimum threshold
+Use when: Verified score is below the applicable program cutoff
+
+AA-102
+Title: Insufficient credit history
+Use when: File lacks enough tradeline depth or history to support approval
+
+AA-103
+Title: Serious delinquency or derogatory credit history
+Use when: Recent charge-off, collections severity, major delinquency, or similar
+
+AA-104
+Title: Recent repossession or auto-loan default history
+Use when: Prior auto-loan performance materially increases collateral risk
+
+AA-105
+Title: Excessive debt obligations relative to income
+Use when: DTI exceeds policy limits
+
+AA-106
+Title: Insufficient verified income for requested obligation
+Use when: Verified income does not support payment affordability
+
+AA-107
+Title: Income could not be verified
+Use when: Required documentation is missing, incomplete, or inconsistent
+
+AA-108
+Title: Employment or income stability is insufficient
+Use when: Income history is too limited or unstable under policy
+
+AA-109
+Title: Loan-to-value ratio exceeds policy limit
+Use when: Financed amount exceeds allowed share of vehicle value
+
+AA-110
+Title: Vehicle collateral does not meet program guidelines
+Use when: Vehicle age, mileage, title status, or condition is ineligible
+
+AA-111
+Title: Requested term exceeds policy maximum
+Use when: Loan term is outside program limits and no exception is approved
+
+AA-112
+Title: Required applicant information could not be verified
+Use when: Identity, residence, or other required facts remain unverified
+
+AA-113
+Title: Material inconsistency in application information
+Use when: Submitted data conflicts with documents or verified records
+
+AA-114
+Title: Payment affordability is outside policy tolerance
+Use when: Payment-to-income or residual affordability fails program limits
+
+AA-115
+Title: Manual review required before final decision
+Use when: Application is not ready for approval or decline without escalation
+
+4. Counteroffer-oriented reasons
+These reasons support less favorable terms instead of outright denial:
+
+CO-201
+Title: Lower loan amount required to meet loan-to-value policy
+
+CO-202
+Title: Larger down payment required to meet underwriting standards
+
+CO-203
+Title: Shorter loan term required to meet affordability policy
+
+CO-204
+Title: Qualified co-borrower or co-signer required
+
+5. Reason selection examples
+Example A:
+- AA-105 Excessive debt obligations relative to income
+- AA-109 Loan-to-value ratio exceeds policy limit
+
+Example B:
+- AA-107 Income could not be verified
+
+Example C:
+- CO-202 Larger down payment required to meet underwriting standards
+- CO-203 Shorter loan term required to meet affordability policy
+
+6. Prohibited reasons
+Never use:
+- Personal profile concerns
+- Neighborhood risk
+- Customer fit
+- AI confidence score
+- Protected trait or proxy references

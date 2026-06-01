@@ -1,0 +1,78 @@
+VEHICLE VALUATION POLICY
+
+Document owner: Collateral Risk
+Version: 1.0
+Status: Approved for knowledge base use
+
+1. Purpose
+This policy defines how vehicle value is determined for loan-to-value analysis
+and collateral eligibility decisions.
+
+2. Approved valuation sources
+Use one of the following approved valuation sources:
+- Dealer invoice or manufacturer suggested retail price for new vehicles
+- Approved third-party retail valuation guide for used vehicles
+- Internal collateral valuation service if approved by Risk
+
+If multiple values are available, use the lowest reasonable supported value
+unless a documented exception is approved.
+
+3. Value used for LTV
+For LTV calculations, use the lesser of:
+- Purchase price
+- Approved market value from valuation source
+
+4. Included and excluded amounts
+Include in financed amount:
+- Base vehicle amount
+- Approved taxes and registration fees
+- Approved service contracts if program permits
+
+Exclude from vehicle value:
+- Negative equity from trade-in rollover
+- Add-on products not eligible under program rules
+- Unsupported dealer markup
+
+5. Vehicle eligibility guidelines
+Standard eligibility:
+- Clean title
+- No salvage, rebuilt, flood, or lemon-law branded title
+- Personal-use passenger vehicle or light truck
+- Mileage and age within program limits
+
+Manual review required:
+- Commercial-use vehicle
+- Specialty or exotic vehicle
+- Older high-mileage collateral
+- Modified vehicle with uncertain resale value
+
+6. Mileage and age guidance
+- New vehicle: standard policy applies
+- Used vehicle up to 5 model years old and under 75,000 miles: standard policy
+- Used vehicle 6 to 8 model years old or 75,000 to 120,000 miles: tighter LTV
+- Older than 8 model years or over 120,000 miles: manual review only
+
+7. LTV interpretation
+- Low risk: 90 percent or less
+- Standard risk: over 90 percent to 100 percent
+- Elevated risk: over 100 percent to policy cap
+- Out of policy: above policy cap
+
+8. Required output for AI or assisted review
+Every valuation assessment must include:
+- Valuation source used
+- Value amount used for LTV
+- Financed amount used for LTV
+- Calculated LTV
+- Any collateral exception or eligibility concern
+
+9. Escalation triggers
+Escalate to manual review when:
+- Valuation sources materially conflict
+- Dealer price appears inflated relative to market value
+- Title status is unclear
+- Vehicle is outside standard age, mileage, or condition tolerance
+
+10. Control reminder
+Vehicle value policy supports collateral risk review only. It must not be used
+as a proxy for applicant demographics or neighborhood characteristics.

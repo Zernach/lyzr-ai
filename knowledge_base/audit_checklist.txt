@@ -1,0 +1,60 @@
+AUDIT CHECKLIST
+
+Document owner: Risk Governance
+Version: 1.0
+Status: Approved for knowledge base use
+
+Purpose:
+Use this checklist to confirm that every underwriting recommendation is
+traceable, explainable, and supported by policy and verified applicant data.
+
+Checklist:
+
+1. Applicant facts
+- Identity status documented
+- Requested loan amount documented
+- Requested term documented
+- Vehicle details documented
+- Credit score documented with source and date
+- Income documents listed
+- Monthly debt obligations listed
+
+2. Calculations
+- DTI calculated and recorded
+- LTV calculated and recorded
+- Payment affordability assessed
+
+3. Policy retrieval and application
+- Underwriting policy section identified
+- Fair lending policy checked
+- Vehicle valuation policy applied when relevant
+- Income verification rules applied when relevant
+- Exception policy checked when relevant
+
+4. Recommendation quality
+- Recommendation category stated
+- Supporting factors stated
+- Missing information stated
+- Manual review requirement clearly stated when triggered
+- Output does not claim to be a final legal decision unless approved workflow permits
+
+5. Fair lending controls
+- No protected trait used
+- No prohibited proxy reasoning present
+- Recommendation language is specific and neutral
+- Similar-case consistency concern noted if applicable
+
+6. Adverse action readiness
+- Specific adverse action or counteroffer reasons selected if needed
+- Reasons are supported by verified facts
+- Reasons are clear and not vague
+
+7. Governance
+- System or reviewer identity captured
+- Timestamp captured
+- Exception approval captured if applicable
+- Audit trail is complete enough for later review
+
+Pass condition:
+The file is audit-ready only when each applicable item above is complete and the
+recommendation can be explained from retrieved policy plus verified facts alone.

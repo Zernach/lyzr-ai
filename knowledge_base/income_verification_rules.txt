@@ -1,0 +1,79 @@
+INCOME VERIFICATION RULES
+
+Document owner: Operations
+Version: 1.0
+Status: Approved for knowledge base use
+
+1. Purpose
+These rules define acceptable income documentation and how verified income may be
+used in underwriting recommendations.
+
+2. General rule
+Income must be stable, recurring where required, and supported by current
+documentation. If income cannot be verified, it cannot be used for approval.
+
+3. Standard salaried or hourly employee
+Preferred documentation:
+- Most recent 30 days of pay stubs
+- Most recent W-2
+- Employer verification when needed
+
+Use current gross monthly income unless there is evidence of declining hours,
+temporary employment, or inconsistent pay.
+
+4. Self-employed applicant
+Required documentation:
+- Two years of personal tax returns
+- Two years of business tax returns if applicable
+- Year-to-date profit and loss statement when needed
+- Recent business bank statements if required for validation
+
+Use averaged income unless current-year evidence supports a lower amount.
+
+5. Commission, bonus, or overtime income
+Use only if:
+- Received consistently
+- Documented with history, typically 12 months or more
+- Reasonably expected to continue
+
+If history is inconsistent, exclude the variable component or escalate.
+
+6. Public benefits, retirement, or fixed non-employment income
+May be considered if legally permissible and documented through award letters,
+benefit statements, pension statements, or deposit history.
+
+Do not treat receipt of public assistance as a negative factor. Only assess
+whether the income is stable, documentable, and sufficient.
+
+7. Bank statement support
+Bank statements may support income consistency but do not replace primary income
+documentation unless an approved alternative documentation path exists.
+
+8. Red flags requiring manual review
+- Large unexplained income changes
+- Altered or inconsistent documents
+- Claimed income materially exceeds documented deposits
+- Temporary job status with insufficient history
+- Cash income without reliable supporting records
+
+9. Documentation recency
+- Pay stubs should generally be within the last 30 days
+- Bank statements should generally be within the last 60 days
+- Tax returns should be the two most recent filed years when required
+
+10. Verification outcomes
+Use one of the following statuses:
+- Fully verified
+- Partially verified
+- Unable to verify
+
+Applications with partially verified or unable-to-verify income require either
+additional documents or manual review before approval.
+
+11. AI output requirements
+Any recommendation referencing income must state:
+- Income source type
+- Documents reviewed
+- Verification status
+- Verified monthly income used in calculations
+- Any missing documents
