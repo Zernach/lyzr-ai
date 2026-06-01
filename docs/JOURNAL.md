@@ -22,3 +22,4 @@
 | firebase/main.py: configure CorsOptions on api fn (lyzr-ai-demo.web.app, .firebaseapp.com, http://localhost:5173) so preflights succeed through Hosting rewrite | 2026-06-01 17:18:00 MDT | 60s          | 9500       |
 | Fix deploy-frontend Permission denied: write minimal scripts/deploy_frontend.sh (yarn build && wrangler pages deploy --commit-dirty=true) and chmod +x | 2026-06-01 17:21:43 MDT | 150s         | 14000      |
 | Simplify deploy_frontend.sh to cd into frontend/ and run `yarn deploy` (single source of truth in frontend/package.json) | 2026-06-01 17:23:58 MDT | 30s          | 3500       |
+| Use frontend/public/lyzr-icon.{ico,png} as favicon/apple-touch-icon in index.html (replaces vite.svg) | 2026-06-01 17:29:35 MDT | 25s          | 4500       |
