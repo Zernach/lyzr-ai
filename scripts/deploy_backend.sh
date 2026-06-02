@@ -14,7 +14,8 @@
 #   4. Generates firebase/requirements.txt by concatenating
 #      firebase/requirements.txt.in with backend/requirements.txt
 #      (uvicorn stripped — Firebase provides the HTTP server).
-#   5. Runs `firebase deploy --only functions:api,hosting`.
+#   5. Runs `firebase deploy --only functions,hosting` (both the `api`
+#      HTTPS function and the `process_job` Firestore-triggered function).
 #
 # One-time setup (manual, do NOT script):
 #   A. yarn install                  # at repo root, installs firebase-tools
@@ -152,7 +153,7 @@ else
   PROJECT="$(python3 -c "import json,sys;print(json.load(open('.firebaserc'))['projects']['default'])")"
 fi
 say "Deploying to Firebase project: ${PROJECT}"
-"$FIREBASE" deploy --only functions:api,hosting --project "$PROJECT"
+"$FIREBASE" deploy --only functions,hosting --project "$PROJECT"
 
 ok "Deploy complete."
 cat <<EOF
