@@ -10,7 +10,7 @@ export const ENV: "local" | "dev" = "dev";
 
 const BACKEND_URLS = {
   local: "http://localhost:8000",
-  dev: "https://api.lyzr.archlife.org",
+  dev: "",
 } as const;
 
 export const BACKEND_URL: string = BACKEND_URLS[ENV];
