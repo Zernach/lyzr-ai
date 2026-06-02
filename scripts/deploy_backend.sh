@@ -23,7 +23,7 @@
 #   D. Set runtime secrets (Lyzr credentials):
 #        npx firebase functions:secrets:set LYZR_API_KEY  --project lyzr-ai-demo
 #        npx firebase functions:secrets:set LYZR_AGENT_ID --project lyzr-ai-demo
-#   E. Add custom domain `lyzr-api.archlife.org` in Hosting console
+#   E. Add custom domain `api.lyzr.archlife.org` in Hosting console
 #      and publish the DNS records Firebase issues (one-time, ~15-60 min
 #      for SSL provisioning).
 #
@@ -162,8 +162,8 @@ cat <<EOF
     https://${PROJECT}.firebaseapp.com/api/health
 
   Custom domain (once DNS + SSL are provisioned in Firebase Hosting):
-    https://lyzr-api.archlife.org/api/health
+    https://api.lyzr.archlife.org/api/health
 
-  Next: set frontend/wrangler.jsonc → vars.BACKEND_URL = https://lyzr-api.archlife.org
+  Next: set frontend/wrangler.jsonc → vars.BACKEND_URL = https://api.lyzr.archlife.org
         then redeploy the Pages site.
 EOF
