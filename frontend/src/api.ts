@@ -13,6 +13,11 @@ export interface UnderwriteResponse {
   raw_response: string;
 }
 
+type StreamEvent =
+  | { event: "heartbeat" }
+  | { event: "result"; data: UnderwriteResponse }
+  | { event: "error"; status?: number; detail?: string };
+
 export async function underwrite(
   rules: string,
   applicant: string
@@ -34,5 +39,37 @@ export async function underwrite(
     throw new Error(detail);
   }
 
-  return res.json();
+  if (!res.body) {
+    throw new Error("Empty response body");
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (value) {
+      buffer += decoder.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buffer.indexOf("\n")) >= 0) {
+        const line = buffer.slice(0, nl).trim();
+        buffer = buffer.slice(nl + 1);
+        if (!line) continue;
+        let evt: StreamEvent;
+        try {
+          evt = JSON.parse(line) as StreamEvent;
+        } catch {
+          continue;
+        }
+        if (evt.event === "heartbeat") continue;
+        if (evt.event === "result") return evt.data;
+        if (evt.event === "error") {
+          throw new Error(evt.detail || `Request failed (${evt.status ?? 500})`);
+        }
+      }
+    }
+    if (done) break;
+  }
+  throw new Error("Stream ended without a result");
 }

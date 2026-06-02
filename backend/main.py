@@ -8,6 +8,7 @@ response, and returns a clean JSON payload for the dashboard.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
 import secrets
@@ -16,6 +17,7 @@ from typing import Any
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from lyzr import Studio
 from pydantic import BaseModel, Field
 
@@ -275,14 +277,39 @@ async def health() -> dict[str, Any]:
     }
 
 
-@app.post("/api/underwrite", response_model=UnderwriteResponse)
-async def underwrite(req: UnderwriteRequest) -> UnderwriteResponse:
+@app.post("/api/underwrite")
+async def underwrite(req: UnderwriteRequest) -> StreamingResponse:
+    # Streams NDJSON: `{"event":"heartbeat"}` lines every ~5s while the
+    # agent runs, then a single `{"event":"result","data":{...}}` (or
+    # `{"event":"error",...}`). The heartbeats keep Cloudflare's 100s edge
+    # idle-timeout from killing the proxy connection mid-call.
     if not req.rules.strip() or not req.applicant.strip():
         raise HTTPException(status_code=400, detail="Both rules and applicant data are required.")
 
     message = _build_message(req.rules, req.applicant)
     session_id = _new_session_id(LYZR_AGENT_ID)
 
-    # SDK call is sync — run it in a worker thread so we don't block the loop.
-    raw = await asyncio.to_thread(_run_agent, message, session_id)
-    return _parse_response(raw)
+    async def stream():
+        task = asyncio.create_task(asyncio.to_thread(_run_agent, message, session_id))
+        yield b'{"event":"heartbeat"}\n'
+        while True:
+            try:
+                raw = await asyncio.wait_for(asyncio.shield(task), timeout=5.0)
+            except asyncio.TimeoutError:
+                yield b'{"event":"heartbeat"}\n'
+                continue
+            except HTTPException as e:
+                yield (json.dumps({"event": "error", "status": e.status_code, "detail": e.detail}) + "\n").encode()
+                return
+            except Exception as e:  # noqa: BLE001
+                yield (json.dumps({"event": "error", "status": 500, "detail": str(e)}) + "\n").encode()
+                return
+            try:
+                result = _parse_response(raw)
+                payload = {"event": "result", "data": result.model_dump()}
+            except Exception as e:  # noqa: BLE001
+                payload = {"event": "error", "status": 500, "detail": f"parse failed: {e}"}
+            yield (json.dumps(payload) + "\n").encode()
+            return
+
+    return StreamingResponse(stream(), media_type="application/x-ndjson")
