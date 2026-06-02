@@ -6,4 +6,6 @@
 # Versions pinned per CLAUDE.md 7-day quarantine rule (no release younger
 # than 7 days; checked 2026-06-01).
 firebase-functions==0.5.0
+firebase-admin==7.4.0
+google-cloud-firestore==2.27.0
 a2wsgi==1.10.10

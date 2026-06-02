@@ -7,17 +7,18 @@ response, and returns a clean JSON payload for the dashboard.
 
 from __future__ import annotations
 
-import asyncio
 import os
 import re
 import secrets
-import time
 import uuid
 from typing import Any
 
+import firebase_admin
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from firebase_admin import firestore as fb_firestore
+from google.cloud.firestore_v1 import SERVER_TIMESTAMP
 from lyzr import Studio
 from pydantic import BaseModel, Field
 
@@ -89,7 +90,7 @@ def _get_agent() -> Any:
         return _agent
     if not LYZR_API_KEY or not LYZR_AGENT_ID:
         raise HTTPException(status_code=500, detail="Lyzr credentials not configured.")
-    _studio = Studio(api_key=LYZR_API_KEY, env=LYZR_ENV, timeout=3600)
+    _studio = Studio(api_key=LYZR_API_KEY, env=LYZR_ENV, timeout=540)
     _agent = _studio.get_agent(LYZR_AGENT_ID)
     return _agent
 
@@ -264,31 +265,22 @@ def _parse_response(raw: str) -> UnderwriteResponse:
     )
 
 
-# ─── Job store (in-memory) ──────────────────────────────────────────────────
-# The browser POSTs to /api/underwrite to start a job and then polls
-# /api/jobs/{job_id} until the agent run finishes. This sidesteps the 100s
-# Cloudflare edge timeout that killed the earlier streaming approach.
+# ─── Job store (Firestore) ──────────────────────────────────────────────────
+# Browser POSTs /api/underwrite → we write a doc to Firestore and return
+# job_id immediately. A separate Cloud Function (firebase/main.py
+# `process_job`) is triggered by the doc create, runs the agent, and writes
+# the result back to the same doc. Browser polls /api/jobs/{job_id}.
+# This sidesteps both Cloudflare's 100s edge cap and the fact that
+# `asyncio.create_task` background work doesn't survive past a serverless
+# function's response.
 
-JOB_TTL_SECONDS = 3600
-_JOBS: dict[str, dict[str, Any]] = {}
-
-
-def _cleanup_jobs() -> None:
-    now = time.time()
-    for jid in [j for j, v in _JOBS.items() if now - v["created_at"] > JOB_TTL_SECONDS]:
-        _JOBS.pop(jid, None)
+JOBS_COLLECTION = "underwriting_jobs"
 
 
-async def _run_job(job_id: str, message: str, session_id: str) -> None:
-    _JOBS[job_id]["status"] = "running"
-    try:
-        raw = await asyncio.to_thread(_run_agent, message, session_id)
-        result = _parse_response(raw)
-        _JOBS[job_id].update(status="done", result=result.model_dump())
-    except HTTPException as e:
-        _JOBS[job_id].update(status="error", detail=str(e.detail), http_status=e.status_code)
-    except Exception as e:  # noqa: BLE001
-        _JOBS[job_id].update(status="error", detail=str(e), http_status=500)
+def _db() -> Any:
+    if not firebase_admin._apps:  # type: ignore[attr-defined]
+        firebase_admin.initialize_app()
+    return fb_firestore.client()
 
 
 # ─── Endpoints ──────────────────────────────────────────────────────────────
@@ -309,25 +301,25 @@ async def underwrite(req: UnderwriteRequest) -> dict[str, str]:
     if not req.rules.strip() or not req.applicant.strip():
         raise HTTPException(status_code=400, detail="Both rules and applicant data are required.")
 
-    _cleanup_jobs()
     job_id = uuid.uuid4().hex
-    _JOBS[job_id] = {"status": "pending", "created_at": time.time()}
-
-    message = _build_message(req.rules, req.applicant)
-    session_id = _new_session_id(LYZR_AGENT_ID)
-    asyncio.create_task(_run_job(job_id, message, session_id))
-
+    _db().collection(JOBS_COLLECTION).document(job_id).set({
+        "status": "pending",
+        "created_at": SERVER_TIMESTAMP,
+        "rules": req.rules,
+        "applicant": req.applicant,
+    })
     return {"job_id": job_id, "status": "pending"}
 
 
 @app.get("/api/jobs/{job_id}")
 async def get_job(job_id: str) -> dict[str, Any]:
-    job = _JOBS.get(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found or expired.")
-    out: dict[str, Any] = {"status": job["status"]}
-    if job["status"] == "done":
-        out["result"] = job["result"]
-    elif job["status"] == "error":
-        out["detail"] = job.get("detail", "Unknown error")
+    doc = _db().collection(JOBS_COLLECTION).document(job_id).get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    data = doc.to_dict() or {}
+    out: dict[str, Any] = {"status": data.get("status", "unknown")}
+    if out["status"] == "done":
+        out["result"] = data.get("result")
+    elif out["status"] == "error":
+        out["detail"] = data.get("detail", "Unknown error")
     return out
