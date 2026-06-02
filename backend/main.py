@@ -8,16 +8,16 @@ response, and returns a clean JSON payload for the dashboard.
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import re
 import secrets
+import time
+import uuid
 from typing import Any
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
 from lyzr import Studio
 from pydantic import BaseModel, Field
 
@@ -264,6 +264,33 @@ def _parse_response(raw: str) -> UnderwriteResponse:
     )
 
 
+# ─── Job store (in-memory) ──────────────────────────────────────────────────
+# The browser POSTs to /api/underwrite to start a job and then polls
+# /api/jobs/{job_id} until the agent run finishes. This sidesteps the 100s
+# Cloudflare edge timeout that killed the earlier streaming approach.
+
+JOB_TTL_SECONDS = 3600
+_JOBS: dict[str, dict[str, Any]] = {}
+
+
+def _cleanup_jobs() -> None:
+    now = time.time()
+    for jid in [j for j, v in _JOBS.items() if now - v["created_at"] > JOB_TTL_SECONDS]:
+        _JOBS.pop(jid, None)
+
+
+async def _run_job(job_id: str, message: str, session_id: str) -> None:
+    _JOBS[job_id]["status"] = "running"
+    try:
+        raw = await asyncio.to_thread(_run_agent, message, session_id)
+        result = _parse_response(raw)
+        _JOBS[job_id].update(status="done", result=result.model_dump())
+    except HTTPException as e:
+        _JOBS[job_id].update(status="error", detail=str(e.detail), http_status=e.status_code)
+    except Exception as e:  # noqa: BLE001
+        _JOBS[job_id].update(status="error", detail=str(e), http_status=500)
+
+
 # ─── Endpoints ──────────────────────────────────────────────────────────────
 
 @app.get("/api/health")
@@ -277,39 +304,30 @@ async def health() -> dict[str, Any]:
     }
 
 
-@app.post("/api/underwrite")
-async def underwrite(req: UnderwriteRequest) -> StreamingResponse:
-    # Streams NDJSON: `{"event":"heartbeat"}` lines every ~5s while the
-    # agent runs, then a single `{"event":"result","data":{...}}` (or
-    # `{"event":"error",...}`). The heartbeats keep Cloudflare's 100s edge
-    # idle-timeout from killing the proxy connection mid-call.
+@app.post("/api/underwrite", status_code=202)
+async def underwrite(req: UnderwriteRequest) -> dict[str, str]:
     if not req.rules.strip() or not req.applicant.strip():
         raise HTTPException(status_code=400, detail="Both rules and applicant data are required.")
 
+    _cleanup_jobs()
+    job_id = uuid.uuid4().hex
+    _JOBS[job_id] = {"status": "pending", "created_at": time.time()}
+
     message = _build_message(req.rules, req.applicant)
     session_id = _new_session_id(LYZR_AGENT_ID)
+    asyncio.create_task(_run_job(job_id, message, session_id))
 
-    async def stream():
-        task = asyncio.create_task(asyncio.to_thread(_run_agent, message, session_id))
-        yield b'{"event":"heartbeat"}\n'
-        while True:
-            try:
-                raw = await asyncio.wait_for(asyncio.shield(task), timeout=5.0)
-            except asyncio.TimeoutError:
-                yield b'{"event":"heartbeat"}\n'
-                continue
-            except HTTPException as e:
-                yield (json.dumps({"event": "error", "status": e.status_code, "detail": e.detail}) + "\n").encode()
-                return
-            except Exception as e:  # noqa: BLE001
-                yield (json.dumps({"event": "error", "status": 500, "detail": str(e)}) + "\n").encode()
-                return
-            try:
-                result = _parse_response(raw)
-                payload = {"event": "result", "data": result.model_dump()}
-            except Exception as e:  # noqa: BLE001
-                payload = {"event": "error", "status": 500, "detail": f"parse failed: {e}"}
-            yield (json.dumps(payload) + "\n").encode()
-            return
+    return {"job_id": job_id, "status": "pending"}
 
-    return StreamingResponse(stream(), media_type="application/x-ndjson")
+
+@app.get("/api/jobs/{job_id}")
+async def get_job(job_id: str) -> dict[str, Any]:
+    job = _JOBS.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found or expired.")
+    out: dict[str, Any] = {"status": job["status"]}
+    if job["status"] == "done":
+        out["result"] = job["result"]
+    elif job["status"] == "error":
+        out["detail"] = job.get("detail", "Unknown error")
+    return out

@@ -13,63 +13,67 @@ export interface UnderwriteResponse {
   raw_response: string;
 }
 
-type StreamEvent =
-  | { event: "heartbeat" }
-  | { event: "result"; data: UnderwriteResponse }
-  | { event: "error"; status?: number; detail?: string };
+interface StartJobResponse {
+  job_id: string;
+  status: string;
+}
+
+interface JobStatusResponse {
+  status: "pending" | "running" | "done" | "error";
+  result?: UnderwriteResponse;
+  detail?: string;
+}
+
+const POLL_INTERVAL_MS = 2000;
+const MAX_POLL_ATTEMPTS = 600; // ~20 minutes
+
+async function readDetail(res: Response, fallback: string): Promise<string> {
+  try {
+    const body = await res.json();
+    if (body?.detail) return String(body.detail);
+  } catch {
+    // ignore
+  }
+  return fallback;
+}
 
 export async function underwrite(
   rules: string,
   applicant: string
 ): Promise<UnderwriteResponse> {
-  const res = await fetch(`${BACKEND_URL}/api/underwrite`, {
+  const startRes = await fetch(`${BACKEND_URL}/api/underwrite`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ rules, applicant }),
   });
 
-  if (!res.ok) {
-    let detail = `Request failed (${res.status})`;
-    try {
-      const body = await res.json();
-      if (body?.detail) detail = body.detail;
-    } catch {
-      // ignore
-    }
-    throw new Error(detail);
+  if (!startRes.ok) {
+    throw new Error(await readDetail(startRes, `Request failed (${startRes.status})`));
   }
 
-  if (!res.body) {
-    throw new Error("Empty response body");
-  }
+  const { job_id } = (await startRes.json()) as StartJobResponse;
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
+  for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
 
-  while (true) {
-    const { value, done } = await reader.read();
-    if (value) {
-      buffer += decoder.decode(value, { stream: true });
-      let nl: number;
-      while ((nl = buffer.indexOf("\n")) >= 0) {
-        const line = buffer.slice(0, nl).trim();
-        buffer = buffer.slice(nl + 1);
-        if (!line) continue;
-        let evt: StreamEvent;
-        try {
-          evt = JSON.parse(line) as StreamEvent;
-        } catch {
-          continue;
-        }
-        if (evt.event === "heartbeat") continue;
-        if (evt.event === "result") return evt.data;
-        if (evt.event === "error") {
-          throw new Error(evt.detail || `Request failed (${evt.status ?? 500})`);
-        }
+    const pollRes = await fetch(`${BACKEND_URL}/api/jobs/${job_id}`);
+    if (!pollRes.ok) {
+      if (pollRes.status === 404) {
+        throw new Error("Job expired before completing.");
       }
+      // 5xx / transient — keep polling
+      continue;
     }
-    if (done) break;
+
+    const body = (await pollRes.json()) as JobStatusResponse;
+    if (body.status === "done" && body.result) {
+      return body.result;
+    }
+    if (body.status === "error") {
+      throw new Error(body.detail || "Underwriting job failed.");
+    }
+    // pending | running — keep polling
   }
-  throw new Error("Stream ended without a result");
+
+  throw new Error("Timed out waiting for underwriting result.");
 }
