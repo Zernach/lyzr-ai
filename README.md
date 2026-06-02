@@ -25,6 +25,6 @@ Or launch both services directly:
 
 - `backend/` — FastAPI service wrapping the Lyzr orchestrator (`backend/README.md`)
 - `frontend/` — Vite + React dashboard, dark arctic theme (`frontend/README.md`)
-- `agents/` — Orchestrator + sub-agent prompts
+- `agents/` — Orchestrator + sub-agent prompts (generated locally and saved in Lyzr)
 - `scripts/` — `start.sh`, `deploy_backend.sh`, `deploy_frontend.sh`
 - `docs/` — Bootstrap brief, research notes, journal
