@@ -313,6 +313,38 @@ export async function getJobResult(
   return d.status === "done" ? (d.result ?? null) : null;
 }
 
+/** Enqueue an underwriting run straight from the browser.
+ *
+ *  Writing the `pending` job doc here — rather than POSTing the backend — keeps
+ *  job creation entirely off the HTTP path. The Firestore-triggered Cloud
+ *  Function (`process_job`) fires on this create regardless of who wrote the
+ *  doc, runs the agent crew, and writes the result back; `listenJob` streams it
+ *  to the loading view. This is what makes the launch immune to a backend that
+ *  can't reach Firestore (the failure mode that stalled `POST /api/underwrite`
+ *  for 60s). Field names mirror exactly what `process_job` reads. */
+export async function createJob(input: {
+  rules: string;
+  applicant: string;
+  applicantId?: string;
+  rulesId?: string;
+  createdBy?: string;
+}): Promise<string> {
+  const ref = doc(collection(db, JOBS));
+  await setDoc(
+    ref,
+    clean({
+      status: "pending",
+      created_at: serverTimestamp(),
+      rules: input.rules,
+      applicant: input.applicant,
+      applicant_id: input.applicantId,
+      rules_id: input.rulesId,
+      created_by: input.createdBy,
+    })
+  );
+  return ref.id;
+}
+
 export type JobStatus = "pending" | "running" | "done" | "error" | "missing";
 
 export interface JobSnapshot {
@@ -330,29 +362,67 @@ export interface JobSnapshot {
  *  browser only reads. The loading view watches this instead of HTTP-polling
  *  the backend `/api/jobs/{id}` endpoint — a long poll across the ~4-minute run
  *  can 500 on cold starts, whereas this realtime listener simply rides the
- *  backend's own Firestore writes. */
+ *  backend's own Firestore writes.
+ *
+ *  Self-healing: a single onSnapshot error is NOT fatal. Firestore listeners
+ *  routinely hit transient channel errors (network blips, token refresh, the
+ *  WebChannel/long-poll reconnecting), and the job keeps running server-side
+ *  regardless — so we re-subscribe a handful of times with backoff before
+ *  surfacing anything to the caller. This is what stops a momentary blip from
+ *  tearing down the whole crew console. */
 export function listenJob(
   jobId: string,
   cb: (job: JobSnapshot) => void,
   onErr?: (e: Error) => void
 ): Unsubscribe {
-  return onSnapshot(
-    doc(db, JOBS, jobId),
-    (snap: any) => {
-      if (!snap.exists()) {
-        cb({ status: "missing" });
-        return;
+  let active = true;
+  let attempts = 0;
+  let inner: Unsubscribe = () => {};
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const attach = () => {
+    inner = onSnapshot(
+      doc(db, JOBS, jobId),
+      (snap: any) => {
+        attempts = 0; // a good read resets the backoff
+        if (!snap.exists()) {
+          cb({ status: "missing" });
+          return;
+        }
+        const d = snap.data() as Record<string, any>;
+        cb({
+          status: (d.status as JobStatus) ?? "pending",
+          result: d.result ?? null,
+          detail: typeof d.detail === "string" ? d.detail : undefined,
+          createdAt: ts(d.created_at) ?? ts(d.createdAt),
+        });
+      },
+      (e: any) => {
+        if (active && attempts < 8) {
+          attempts += 1;
+          try {
+            inner();
+          } catch {
+            /* already torn down */
+          }
+          timer = setTimeout(() => active && attach(), Math.min(500 * attempts, 4000));
+        } else if (active) {
+          onErr?.(e as Error);
+        }
       }
-      const d = snap.data() as Record<string, any>;
-      cb({
-        status: (d.status as JobStatus) ?? "pending",
-        result: d.result ?? null,
-        detail: typeof d.detail === "string" ? d.detail : undefined,
-        createdAt: ts(d.created_at) ?? ts(d.createdAt),
-      });
-    },
-    (e: any) => onErr?.(e as Error)
-  );
+    );
+  };
+  attach();
+
+  return () => {
+    active = false;
+    if (timer) clearTimeout(timer);
+    try {
+      inner();
+    } catch {
+      /* already torn down */
+    }
+  };
 }
 
 /** Delete every doc in a collection (used by "Reset sample data"). Firestore

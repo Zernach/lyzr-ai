@@ -280,6 +280,10 @@ def _parse_response(raw: str) -> UnderwriteResponse:
 
 JOBS_COLLECTION = "underwriting_jobs"
 
+# Cap every Firestore call so a DNS/network hiccup fails fast with a clean 503
+# instead of burning the client's default 60s retry deadline (→ RetryError 500).
+FIRESTORE_TIMEOUT_S = 10.0
+
 
 def _db() -> Any:
     if not firebase_admin._apps:  # type: ignore[attr-defined]
@@ -318,13 +322,33 @@ async def underwrite(req: UnderwriteRequest) -> dict[str, str]:
         job_doc["rules_id"] = req.rules_id.strip()
     if req.created_by and req.created_by.strip():
         job_doc["created_by"] = req.created_by.strip()
-    _db().collection(JOBS_COLLECTION).document(job_id).set(job_doc)
+    # Fail fast: cap the write at FIRESTORE_TIMEOUT_S so a flaky/unreachable
+    # Firestore can't stall the request for the client's default 60s deadline
+    # (which surfaced as a RetryError 500). The browser's primary path writes
+    # this doc directly anyway; this endpoint is the resilient fallback.
+    try:
+        _db().collection(JOBS_COLLECTION).document(job_id).set(
+            job_doc, timeout=FIRESTORE_TIMEOUT_S
+        )
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status_code=503,
+            detail="Job store is temporarily unreachable — please retry.",
+        ) from e
     return {"job_id": job_id, "status": "pending"}
 
 
 @app.get("/api/jobs/{job_id}")
 async def get_job(job_id: str) -> dict[str, Any]:
-    doc = _db().collection(JOBS_COLLECTION).document(job_id).get()
+    try:
+        doc = _db().collection(JOBS_COLLECTION).document(job_id).get(
+            timeout=FIRESTORE_TIMEOUT_S
+        )
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status_code=503,
+            detail="Job store is temporarily unreachable — please retry.",
+        ) from e
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Job not found.")
     data = doc.to_dict() or {}

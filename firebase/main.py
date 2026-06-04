@@ -62,6 +62,10 @@ _CORS_ORIGINS = [
 
 APPLICANTS_COLLECTION = "applicants"
 
+# Cap client-facing Firestore calls so a transient hiccup fails fast with a 503
+# rather than burning the default 60s retry deadline.
+FIRESTORE_TIMEOUT_S = 10.0
+
 
 def _json_response(payload: dict, status: int = 200) -> https_fn.Response:
     return https_fn.Response(
@@ -134,14 +138,30 @@ def api(req: https_fn.Request) -> https_fn.Response:
             val = (body.get(src) or "").strip()
             if val:
                 job_doc[dst] = val
-        fb_firestore.client().collection(JOBS_COLLECTION).document(job_id).set(job_doc)
+        try:
+            fb_firestore.client().collection(JOBS_COLLECTION).document(job_id).set(
+                job_doc, timeout=FIRESTORE_TIMEOUT_S
+            )
+        except Exception:  # noqa: BLE001
+            return _json_response(
+                {"detail": "Job store is temporarily unreachable — please retry."},
+                status=503,
+            )
         return _json_response({"job_id": job_id, "status": "pending"}, status=202)
 
     if method == "GET" and path.startswith("/api/jobs/"):
         job_id = path[len("/api/jobs/"):].strip("/")
         if not job_id:
             return _json_response({"detail": "Missing job_id."}, status=400)
-        doc = fb_firestore.client().collection(JOBS_COLLECTION).document(job_id).get()
+        try:
+            doc = fb_firestore.client().collection(JOBS_COLLECTION).document(job_id).get(
+                timeout=FIRESTORE_TIMEOUT_S
+            )
+        except Exception:  # noqa: BLE001
+            return _json_response(
+                {"detail": "Job store is temporarily unreachable — please retry."},
+                status=503,
+            )
         if not doc.exists:
             return _json_response({"detail": "Job not found."}, status=404)
         data = doc.to_dict() or {}

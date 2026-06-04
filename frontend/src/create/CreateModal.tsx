@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { startUnderwrite, type UnderwriteResponse } from "../api";
+import { beginUnderwriting, type UnderwriteResponse } from "../api";
 import { createApplicant, updateApplicant } from "../db";
 import { SAMPLE_APPLICANT, SAMPLE_RULES } from "../samples";
 import type { ApplicantDraft, Priority, Role, UnderwritingRule } from "../types";
@@ -252,7 +252,7 @@ export default function CreateModal({ role, uid, rules, onClose, onCreated }: Pr
       } else {
         await updateApplicant(id, { stage: "underwriting" });
       }
-      const jid = await startUnderwrite(rulesText, data, {
+      const jid = await beginUnderwriting(rulesText, data, {
         applicantId: id,
         rulesId: selectedRuleId || undefined,
         createdBy: uid,
@@ -280,8 +280,8 @@ export default function CreateModal({ role, uid, rules, onClose, onCreated }: Pr
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal create-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="modal create-modal">
         <header className="modal-head">
           <div className="panel-title">
             <span className="panel-title-bar" />

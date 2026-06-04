@@ -4,10 +4,23 @@
 #   2) Vite/React frontend on :5173
 #   3) Open the dashboard in the default browser
 #
-# Usage:  ./start.sh        (or:  bash start.sh)
+# Usage:  ./start.sh              (or:  bash start.sh)
+#         ./start.sh --no-cache    fresh venv + pip + node_modules (no reuse)
 # Stop:   Ctrl-C (both processes are killed via trap)
 
 set -euo pipefail
+
+NO_CACHE=false
+for arg in "$@"; do
+  case "$arg" in
+    --no-cache|--fresh) NO_CACHE=true ;;
+    -h|--help)
+      echo "Usage: $0 [--no-cache]"
+      echo "  --no-cache  Remove backend/.venv and frontend/node_modules before starting"
+      exit 0
+      ;;
+  esac
+done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -75,6 +88,11 @@ cd "$BACKEND_DIR"
 # ─── backend ────────────────────────────────────────────────────────────────
 log "${BOLD}Backend${RESET} — preparing FastAPI on :8000"
 
+if [[ "$NO_CACHE" == true ]]; then
+  dim "Clearing backend cache (removing .venv)"
+  rm -rf .venv
+fi
+
 # Reuse an existing valid venv when possible (has both python and pip).
 PY_BIN=""
 PY_VERSION=""
@@ -118,7 +136,7 @@ log "Using Python $PY_VERSION → $PY_BIN"
 # shellcheck disable=SC1091
 source .venv/bin/activate
 
-if [[ ! -f ".venv/.deps-installed" ]] || [[ requirements.txt -nt ".venv/.deps-installed" ]]; then
+if [[ "$NO_CACHE" == true ]] || [[ ! -f ".venv/.deps-installed" ]] || [[ requirements.txt -nt ".venv/.deps-installed" ]]; then
   dim "Installing Python dependencies (prefer-binary, no-cache)"
   python -m pip install --quiet --upgrade pip
   # --prefer-binary  → take a prebuilt wheel over a source build whenever possible
@@ -161,7 +179,12 @@ log "${BOLD}Frontend${RESET} — preparing Vite/React on :5173"
 
 cd "$FRONTEND_DIR"
 
-if [[ ! -d "node_modules" ]] || [[ package.json -nt node_modules ]]; then
+if [[ "$NO_CACHE" == true ]]; then
+  dim "Clearing frontend cache (removing node_modules)"
+  rm -rf node_modules
+fi
+
+if [[ "$NO_CACHE" == true ]] || [[ ! -d "node_modules" ]] || [[ package.json -nt node_modules ]]; then
   dim "Installing yarn dependencies"
   yarn install --silent
 else

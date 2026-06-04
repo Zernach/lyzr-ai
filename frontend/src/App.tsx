@@ -190,7 +190,7 @@ function Dashboard({ profile }: { profile: UserProfile }) {
                     <div className="menu-name">{profile.displayName}</div>
                     <div className="menu-email">{profile.email}</div>
                     <span className={`role-badge role-${profile.role}`}>
-                      {profile.role === "underwriter" ? "Underwriter" : "Applicant"}
+                      {profile.role === "underwriter" ? "Lender" : "Borrower"}
                     </span>
                   </div>
                   {isUnderwriter && (

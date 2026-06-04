@@ -55,11 +55,25 @@ service cloud.firestore {
     }
 
     // ── underwriting_jobs ────────────────────────────────────────────────────
-    // Written exclusively by the backend Admin SDK. Clients may read a finished
-    // job (to show prior subagent findings) but never write.
+    // Reads: any signed-in user (to watch a live run + load prior findings).
+    //
+    // Creates: an underwriter may enqueue a *pending* job straight from the
+    // browser. The Firestore-triggered backend (`process_job`) picks it up and
+    // runs the crew. Keeping creation here — rather than on the backend HTTP
+    // path — means the run starts the instant the browser writes the doc, even
+    // when the server can't reach Firestore. Locked to status:'pending' with
+    // the creator's own uid so a client can't forge a finished result.
+    //
+    // Updates/deletes stay backend-only (the Admin SDK bypasses these rules);
+    // a client can never flip a job to done/error or rewrite its result.
     match /underwriting_jobs/{id} {
       allow read: if isSignedIn();
-      allow write: if false;
+      allow create: if isUnderwriter()
+        && request.resource.data.status == 'pending'
+        && request.resource.data.created_by == request.auth.uid
+        && request.resource.data.rules is string
+        && request.resource.data.applicant is string;
+      allow update, delete: if false;
     }
 
     // Default: deny everything else.

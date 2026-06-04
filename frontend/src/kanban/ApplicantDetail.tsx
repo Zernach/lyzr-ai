@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { startUnderwrite, type UnderwriteResponse } from "../api";
+import { beginUnderwriting, type UnderwriteResponse } from "../api";
 import {
   deleteApplicant,
   getJobResult,
@@ -91,7 +91,7 @@ export default function ApplicantDetail({ applicant: a, role, uid, rules, onClos
     setRunning(true);
     try {
       await setApplicantStage(a.id, "underwriting");
-      const jid = await startUnderwrite(rulesText, a.applicantData, {
+      const jid = await beginUnderwriting(rulesText, a.applicantData, {
         applicantId: a.id,
         rulesId: selectedRuleId || undefined,
         createdBy: uid,

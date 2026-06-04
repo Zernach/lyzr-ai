@@ -17,21 +17,24 @@ DIM=$'\033[2m'
 REVERSE=$'\033[7m'
 RESET=$'\033[0m'
 
-CMD_KEYS=(start deploy-frontend deploy-backend deploy-both)
+CMD_KEYS=(start start-without-cache deploy-frontend deploy-backend deploy-both)
 CMD_LABELS=(
   "Start local dev (backend + frontend)"
+  "Start local dev without cache"
   "Deploy frontend (Cloudflare Pages)"
   "Deploy backend"
   "Deploy frontend + backend"
 )
 CMD_DESCS=(
   "runs scripts/start.sh — FastAPI :8000 and Vite :5173"
+  "runs scripts/start.sh --no-cache — fresh .venv and node_modules"
   "runs scripts/deploy_frontend.sh"
   "runs scripts/deploy_backend.sh"
   "runs deploy_frontend.sh then deploy_backend.sh"
 )
 CMD_ACTIONS=(
   "$SCRIPT_DIR/start.sh"
+  "$SCRIPT_DIR/start.sh --no-cache"
   "$SCRIPT_DIR/deploy_frontend.sh"
   "$SCRIPT_DIR/deploy_backend.sh"
   "$SCRIPT_DIR/deploy_frontend.sh && $SCRIPT_DIR/deploy_backend.sh"

@@ -185,6 +185,8 @@ function buildLanes(a: ProgressApplicant, rulesName?: string): LaneDef[] {
 export default function UnderwritingProgress({ jobId, applicant, rulesName, onDone, onError }: Props) {
   const [phase, setPhase] = useState<Phase>("pending");
   const [elapsed, setElapsed] = useState(0);
+  const [reconnecting, setReconnecting] = useState(false);
+  const [retry, setRetry] = useState(0);
 
   // Keep callbacks/result in refs so the Firestore subscription stays bound to
   // jobId alone (no churn when the parent re-renders with new closures).
@@ -193,30 +195,43 @@ export default function UnderwritingProgress({ jobId, applicant, rulesName, onDo
   onDoneRef.current = onDone;
   onErrorRef.current = onError;
   const resultRef = useRef<UnderwriteResponse | null>(null);
+  // One shared "we're finished" latch across the listener + safety timeout, so a
+  // late reconnect or timeout can't fire after the result already landed.
+  const settledRef = useRef(false);
 
   const lanes = useMemo(() => buildLanes(applicant, rulesName), [applicant, rulesName]);
 
-  // ── Live job status from Firestore (the backend's own writes) ──────────────
+  // ── Safety net ─────────────────────────────────────────────────────────────
+  // The run lives entirely server-side, so we never give up early. Only after a
+  // very long wait do we surface a (reassuring) timeout. Runs once.
   useEffect(() => {
-    let settled = false;
-    const hardTimeout = setTimeout(() => {
-      if (settled) return;
-      settled = true;
+    const t = setTimeout(() => {
+      if (settledRef.current) return;
+      settledRef.current = true;
       onErrorRef.current(
         "Timed out waiting for the underwriting result. The crew may still finish in the background — check the board shortly."
       );
     }, HARD_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, []);
 
+  // ── Live job status from Firestore (the backend's own writes) ──────────────
+  // Connectivity failures are NON-fatal: we flag "reconnecting" and re-subscribe
+  // (by bumping `retry`) rather than tearing the console down. Only an explicit
+  // job `error` status — or the long safety timeout above — ever ends the run.
+  useEffect(() => {
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
     const unsub = listenJob(
       jobId,
       (job) => {
-        if (settled) return;
+        if (settledRef.current) return;
+        setReconnecting(false);
         if (job.status === "done" && job.result) {
-          settled = true;
+          settledRef.current = true;
           resultRef.current = job.result as UnderwriteResponse;
           setPhase("done");
         } else if (job.status === "error") {
-          settled = true;
+          settledRef.current = true;
           onErrorRef.current(job.detail || "The underwriting run failed.");
         } else if (job.status === "running") {
           setPhase("running");
@@ -225,18 +240,22 @@ export default function UnderwritingProgress({ jobId, applicant, rulesName, onDo
         }
         // "missing": brief race before the freshly-created doc is visible — ignore.
       },
-      (e) => {
-        if (settled) return;
-        settled = true;
-        onErrorRef.current(e.message);
+      () => {
+        // Sustained listener failure (listenJob already retried internally).
+        // Keep the crew on screen and try again shortly — never kill the view.
+        if (settledRef.current) return;
+        setReconnecting(true);
+        reconnectTimer = setTimeout(() => {
+          if (!settledRef.current) setRetry((n) => n + 1);
+        }, 3000);
       }
     );
 
     return () => {
-      clearTimeout(hardTimeout);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       unsub();
     };
-  }, [jobId]);
+  }, [jobId, retry]);
 
   // Let the user savor the completed crew for a beat before swapping in results.
   useEffect(() => {
@@ -295,6 +314,18 @@ export default function UnderwritingProgress({ jobId, applicant, rulesName, onDo
   const mm = Math.floor(elapsed / 60);
   const ss = Math.floor(elapsed % 60);
   const timer = `${mm}:${String(ss).padStart(2, "0")}`;
+
+  // Reassuring, state-aware footer copy so the wait never feels stalled.
+  const footNote =
+    reconnecting
+      ? "Reconnecting to the live feed… your run is still going in the background."
+      : phase === "done"
+        ? "Crew aligned — compiling the recommendation."
+        : elapsed > 360
+          ? "This run is taking longer than usual — still working. You can close this window; the board updates the moment it lands."
+          : phase === "pending" && elapsed > 40
+            ? "Reserving an agent worker for your case… hang tight — this runs in the background."
+            : "Typically ~4 minutes. This runs in the background — you can close this window and the board will update when the decision lands.";
 
   const snapshot = [
     creditTier(applicant.creditScore) ? `${applicant.creditScore} · ${creditTier(applicant.creditScore)}` : null,
@@ -374,11 +405,7 @@ export default function UnderwritingProgress({ jobId, applicant, rulesName, onDo
         <span className="uw-foot-bars" aria-hidden>
           <i /><i /><i /><i /><i />
         </span>
-        <span className="uw-foot-note">
-          {phase === "done"
-            ? "Crew aligned — compiling the recommendation."
-            : "Typically ~4 minutes. This runs in the background — you can close this window and the board will update when the decision lands."}
-        </span>
+        <span className="uw-foot-note">{footNote}</span>
       </footer>
     </section>
   );

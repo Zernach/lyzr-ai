@@ -26,7 +26,7 @@ interface RoleTheme {
  *  path re-themes the entire form and routes into a distinct sign-up flow. */
 const ROLE_THEME: Record<Role, RoleTheme> = {
   underwriter: {
-    label: "Underwriting team",
+    label: "Lender",
     who: "I review & decide auto-loan applications",
     glyph: "◆",
     accent: "#7DEBFF",
@@ -42,7 +42,7 @@ const ROLE_THEME: Record<Role, RoleTheme> = {
     submit: "Create workspace",
   },
   applicant: {
-    label: "Loan applicant",
+    label: "Borrower",
     who: "I'm applying for an auto loan",
     glyph: "◇",
     accent: "#c08bff",
@@ -52,7 +52,7 @@ const ROLE_THEME: Record<Role, RoleTheme> = {
       "Clear, fast answers — never a black box",
     ],
     cta: "Apply for a loan",
-    formTitle: "Create your applicant account",
+    formTitle: "Create your borrower account",
     formSub: "Apply once, then track everything in one place.",
     emailLabel: "Email",
     submit: "Create account",
@@ -276,7 +276,7 @@ export default function AuthScreen({
                     autoComplete="name"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder={role === "underwriter" ? "Dana Underwriter" : "Alex Applicant"}
+                    placeholder={role === "underwriter" ? "Dana Lender" : "Alex Borrower"}
                     required
                   />
                 </label>
@@ -476,7 +476,7 @@ function Hero({
               <div className="aud-top">
                 <span className="aud-glyph">{t.glyph}</span>
                 <span className="aud-for">
-                  {r === "underwriter" ? "For underwriting teams" : "For loan applicants"}
+                  {r === "underwriter" ? "For lenders" : "For borrowers"}
                 </span>
               </div>
               <ul className="aud-points">
