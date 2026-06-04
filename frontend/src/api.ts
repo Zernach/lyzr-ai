@@ -37,14 +37,32 @@ async function readDetail(res: Response, fallback: string): Promise<string> {
   return fallback;
 }
 
+export interface UnderwriteOptions {
+  /** Link the job back to a kanban card so the backend can move it on finish. */
+  applicantId?: string;
+  /** Rule preset used (stored on the job for auditing). */
+  rulesId?: string;
+  /** uid of whoever kicked off the run. */
+  createdBy?: string;
+  /** Fired with the job id as soon as the run is accepted (202). */
+  onJobStarted?: (jobId: string) => void;
+}
+
 export async function underwrite(
   rules: string,
-  applicant: string
+  applicant: string,
+  opts: UnderwriteOptions = {}
 ): Promise<UnderwriteResponse> {
   const startRes = await fetch(`${BACKEND_URL}/api/underwrite`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ rules, applicant }),
+    body: JSON.stringify({
+      rules,
+      applicant,
+      applicant_id: opts.applicantId,
+      rules_id: opts.rulesId,
+      created_by: opts.createdBy,
+    }),
   });
 
   if (!startRes.ok) {
@@ -52,6 +70,7 @@ export async function underwrite(
   }
 
   const { job_id } = (await startRes.json()) as StartJobResponse;
+  opts.onJobStarted?.(job_id);
 
   for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));

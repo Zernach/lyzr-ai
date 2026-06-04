@@ -3,3 +3,6 @@ uvicorn[standard]>=0.34
 pydantic>=2.11
 python-dotenv>=1.0
 lyzr-adk>=0.1.10
+# Firestore job queue (local uvicorn + Firebase deploy via deploy_backend.sh)
+firebase-admin==7.4.0
+google-cloud-firestore==2.27.0

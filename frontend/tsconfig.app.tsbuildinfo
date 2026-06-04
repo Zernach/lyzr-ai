@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/api.ts","./src/config.ts","./src/main.tsx","./src/samples.ts","./src/vite-env.d.ts"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/underwriteresult.tsx","./src/api.ts","./src/config.ts","./src/db.ts","./src/firebase.ts","./src/format.ts","./src/main.tsx","./src/samples.ts","./src/seeddata.ts","./src/types.ts","./src/vite-env.d.ts","./src/auth/authcontext.tsx","./src/auth/authscreen.tsx","./src/create/createmodal.tsx","./src/kanban/applicantcard.tsx","./src/kanban/applicantdetail.tsx","./src/kanban/kanbanboard.tsx"],"version":"5.9.3"}

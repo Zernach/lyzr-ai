@@ -55,7 +55,12 @@ _CORS_ORIGINS = [
     "https://lyzr-ai-demo.firebaseapp.com",
     "http://localhost:5173",
     "https://lyzr.pages.dev",
+    "https://lyzr.archlife.org",
+    "https://api.lyzr.archlife.org",
 ]
+
+
+APPLICANTS_COLLECTION = "applicants"
 
 
 def _json_response(payload: dict, status: int = 200) -> https_fn.Response:
@@ -64,6 +69,19 @@ def _json_response(payload: dict, status: int = 200) -> https_fn.Response:
         status=status,
         mimetype="application/json",
     )
+
+
+def _stage_for_decision(decision: str, status: str) -> str:
+    """Map an orchestrator decision/status onto a kanban column. Mirrors the
+    TypeScript copy in frontend/src/db.ts (stageForDecision)."""
+    s = (status or "").lower()
+    if "conditional" in s:
+        return "conditional"
+    if decision == "YES":
+        return "approved"
+    if "manual" in s or "refer" in s:
+        return "manual_review"
+    return "declined"
 
 
 @https_fn.on_request(
@@ -101,12 +119,22 @@ def api(req: https_fn.Request) -> https_fn.Response:
                 status=400,
             )
         job_id = uuid.uuid4().hex
-        fb_firestore.client().collection(JOBS_COLLECTION).document(job_id).set({
+        job_doc = {
             "status": "pending",
             "created_at": SERVER_TIMESTAMP,
             "rules": rules,
             "applicant": applicant,
-        })
+        }
+        # Optional kanban linkage — lets process_job move the card on finish.
+        for src, dst in (
+            ("applicant_id", "applicant_id"),
+            ("rules_id", "rules_id"),
+            ("created_by", "created_by"),
+        ):
+            val = (body.get(src) or "").strip()
+            if val:
+                job_doc[dst] = val
+        fb_firestore.client().collection(JOBS_COLLECTION).document(job_id).set(job_doc)
         return _json_response({"job_id": job_id, "status": "pending"}, status=202)
 
     if method == "GET" and path.startswith("/api/jobs/"):
@@ -143,8 +171,21 @@ def process_job(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | None])
         return
 
     job_id = event.params["job_id"]
-    doc_ref = fb_firestore.client().collection(JOBS_COLLECTION).document(job_id)
+    client = fb_firestore.client()
+    doc_ref = client.collection(JOBS_COLLECTION).document(job_id)
     doc_ref.update({"status": "running"})
+
+    applicant_id = data.get("applicant_id")
+
+    def _update_applicant(patch: dict) -> None:
+        if not applicant_id:
+            return
+        try:
+            client.collection(APPLICANTS_COLLECTION).document(applicant_id).update(
+                {**patch, "updatedAt": SERVER_TIMESTAMP}
+            )
+        except Exception:  # noqa: BLE001 — linkage is best-effort
+            pass
 
     try:
         message = _build_message(data["rules"], data["applicant"])
@@ -152,5 +193,13 @@ def process_job(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | None])
         raw = _run_agent(message, session_id)
         result = _parse_response(raw)
         doc_ref.update({"status": "done", "result": result.model_dump()})
+        _update_applicant({
+            "decision": result.decision,
+            "decisionStatus": result.status,
+            "decisionSummary": result.summary,
+            "latestJobId": job_id,
+            "stage": _stage_for_decision(result.decision, result.status),
+        })
     except Exception as e:  # noqa: BLE001
         doc_ref.update({"status": "error", "detail": str(e)})
+        _update_applicant({"stage": "manual_review"})

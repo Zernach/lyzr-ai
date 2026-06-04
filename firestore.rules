@@ -1,0 +1,70 @@
+rules_version = '2';
+
+// Security rules for the Lyzr Underwriting Copilot.
+//
+// Roles live on users/{uid}.role ('underwriter' | 'applicant'). The backend
+// (firebase/main.py) writes underwriting_jobs and applicant decisions via the
+// Admin SDK, which bypasses these rules entirely — so the client paths below
+// only govern what the browser is allowed to do.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isUnderwriter() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().role == 'underwriter';
+    }
+
+    // ── users ──────────────────────────────────────────────────────────────
+    // Signed-in users can read profiles (to render names); each user may
+    // create/update only their own record. No deletes from the client.
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && request.auth.uid == uid;
+      allow delete: if false;
+    }
+
+    // ── underwriting_rules (presets) ─────────────────────────────────────────
+    // Everyone signed in can read the dropdown; only underwriters can edit.
+    match /underwriting_rules/{id} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isUnderwriter();
+    }
+
+    // ── applicants (kanban cards) ────────────────────────────────────────────
+    // Underwriters have full access. An applicant may read and create cards
+    // linked to themselves, and update their own — but cannot delete.
+    match /applicants/{id} {
+      allow read: if isUnderwriter()
+        || (isSignedIn() && resource.data.linkedUserId == request.auth.uid);
+      allow create: if isUnderwriter()
+        || (isSignedIn()
+            && request.resource.data.linkedUserId == request.auth.uid
+            && request.resource.data.createdBy == request.auth.uid);
+      allow update: if isUnderwriter()
+        || (isSignedIn() && resource.data.linkedUserId == request.auth.uid);
+      allow delete: if isUnderwriter();
+    }
+
+    // ── underwriting_jobs ────────────────────────────────────────────────────
+    // Written exclusively by the backend Admin SDK. Clients may read a finished
+    // job (to show prior subagent findings) but never write.
+    match /underwriting_jobs/{id} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // Default: deny everything else.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

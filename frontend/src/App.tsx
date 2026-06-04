@@ -1,49 +1,151 @@
-import { useState } from "react";
-import { underwrite, type UnderwriteResponse } from "./api";
-import { SAMPLE_APPLICANT, SAMPLE_RULES } from "./samples";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "./auth/AuthContext";
+import AuthScreen from "./auth/AuthScreen";
+import CreateModal from "./create/CreateModal";
+import {
+  APPLICANTS,
+  RULES,
+  clearCollection,
+  listenApplicants,
+  listenRules,
+  seedApplicants,
+  seedRules,
+  setApplicantStage,
+} from "./db";
+import { avatarColor, initials } from "./format";
+import ApplicantCard from "./kanban/ApplicantCard";
+import ApplicantDetail from "./kanban/ApplicantDetail";
+import KanbanBoard from "./kanban/KanbanBoard";
+import { SEED_APPLICANTS, SEED_RULES } from "./seedData";
+import type { Applicant, Stage, UnderwritingRule, UserProfile } from "./types";
 
-const SUBAGENT_ORDER = [
-  "Credit Risk",
-  "Income and Affordability",
-  "Vehicle and Loan-to-Value",
-  "Policy Match",
-  "Fair Lending and Compliance",
-  "Manual Review Need",
-];
+const SEED_FLAG = "lyzr_seeded_v1";
 
 export default function App() {
-  const [rules, setRules] = useState("");
-  const [applicant, setApplicant] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<UnderwriteResponse | null>(null);
+  const { user, profile, loading } = useAuth();
 
-  const canSubmit = rules.trim().length > 0 && applicant.trim().length > 0 && !loading;
+  if (loading) {
+    return (
+      <div className="splash">
+        <div className="loading-pulse" />
+        <span>Connecting…</span>
+      </div>
+    );
+  }
+  if (!user) return <AuthScreen />;
+  if (!profile) return <AuthScreen needsProfile />;
+  return <Dashboard profile={profile} />;
+}
 
-  const onSubmit = async () => {
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    try {
-      const data = await underwrite(rules, applicant);
-      setResult(data);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
+function Dashboard({ profile }: { profile: UserProfile }) {
+  const { signOut } = useAuth();
+  const isUnderwriter = profile.role === "underwriter";
+
+  const [applicants, setApplicants] = useState<Applicant[]>([]);
+  const [rules, setRules] = useState<UnderwritingRule[]>([]);
+  const [applicantsLoaded, setApplicantsLoaded] = useState(false);
+  const [rulesLoaded, setRulesLoaded] = useState(false);
+  const [listenError, setListenError] = useState<string | null>(null);
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [selected, setSelected] = useState<Applicant | null>(null);
+  const [search, setSearch] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [seeding, setSeeding] = useState(false);
+
+  const seedAttempt = useRef(false);
+
+  // Live subscriptions
+  useEffect(() => {
+    const unsub = listenApplicants(
+      { role: profile.role, uid: profile.uid },
+      (items) => {
+        setApplicants(items);
+        setApplicantsLoaded(true);
+      },
+      (e) => setListenError(e.message)
+    );
+    return unsub;
+  }, [profile.role, profile.uid]);
+
+  useEffect(() => {
+    const unsub = listenRules(
+      (items) => {
+        setRules(items);
+        setRulesLoaded(true);
+      },
+      (e) => setListenError(e.message)
+    );
+    return unsub;
+  }, []);
+
+  // Auto-seed the demo dataset once, on a fresh empty project (underwriter only).
+  useEffect(() => {
+    if (!isUnderwriter || seedAttempt.current) return;
+    if (!applicantsLoaded || !rulesLoaded) return;
+    if (localStorage.getItem(SEED_FLAG)) return;
+    if (applicants.length === 0 && rules.length === 0) {
+      seedAttempt.current = true;
+      setSeeding(true);
+      Promise.all([
+        seedRules(SEED_RULES),
+        seedApplicants(SEED_APPLICANTS.map((a) => ({ ...a, createdBy: profile.uid }))),
+      ])
+        .then(() => localStorage.setItem(SEED_FLAG, "1"))
+        .catch((e) => setListenError(e instanceof Error ? e.message : String(e)))
+        .finally(() => setSeeding(false));
+    } else {
+      localStorage.setItem(SEED_FLAG, "1");
     }
+  }, [isUnderwriter, applicantsLoaded, rulesLoaded, applicants.length, rules.length, profile.uid]);
+
+  // Keep the open drawer in sync with live data (e.g. when a run finishes).
+  const liveSelected = useMemo(
+    () => (selected ? applicants.find((a) => a.id === selected.id) ?? selected : null),
+    [selected, applicants]
+  );
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return applicants;
+    return applicants.filter((a) =>
+      [a.fullName, a.email, ...(a.tags ?? []), a.vehicle?.make, a.vehicle?.model]
+        .filter(Boolean)
+        .some((s) => String(s).toLowerCase().includes(q))
+    );
+  }, [applicants, search]);
+
+  const stats = useMemo(() => {
+    const by = (s: Stage) => applicants.filter((a) => a.stage === s).length;
+    return {
+      total: applicants.length,
+      review: by("new") + by("underwriting") + by("manual_review"),
+      approved: by("approved") + by("conditional"),
+      declined: by("declined"),
+    };
+  }, [applicants]);
+
+  const onMove = (id: string, stage: Stage) => {
+    setApplicantStage(id, stage).catch((e) =>
+      setListenError(e instanceof Error ? e.message : String(e))
+    );
   };
 
-  const loadSample = () => {
-    setRules(SAMPLE_RULES);
-    setApplicant(SAMPLE_APPLICANT);
-  };
-
-  const clearAll = () => {
-    setRules("");
-    setApplicant("");
-    setResult(null);
-    setError(null);
+  const resetSampleData = async () => {
+    if (!confirm("Reset the board to the sample dataset? This deletes current cards & rules.")) return;
+    setMenuOpen(false);
+    setSeeding(true);
+    try {
+      await clearCollection(APPLICANTS);
+      await clearCollection(RULES);
+      await seedRules(SEED_RULES);
+      await seedApplicants(SEED_APPLICANTS.map((a) => ({ ...a, createdBy: profile.uid })));
+      localStorage.setItem(SEED_FLAG, "1");
+    } catch (e) {
+      setListenError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSeeding(false);
+    }
   };
 
   return (
@@ -56,230 +158,172 @@ export default function App() {
             <div className="brand-sub">Auto Loan · Agentic Decision Support</div>
           </div>
         </div>
-        <div className="status-chip">
-          <span className="status-dot" />
-          Lyzr ADK Orchestrator
+
+        {isUnderwriter && (
+          <div className="topbar-search">
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search applicants, vehicles, tags…"
+            />
+          </div>
+        )}
+
+        <div className="topbar-right">
+          <button className="btn btn-primary create-btn" onClick={() => setCreateOpen(true)}>
+            <span className="plus">＋</span>
+            {isUnderwriter ? "Create" : "New application"}
+          </button>
+
+          <div className="user-menu">
+            <button className="user-trigger" onClick={() => setMenuOpen((v) => !v)}>
+              <span className="kcard-avatar sm" style={{ ["--av" as string]: avatarColor(profile.displayName) }}>
+                {initials(profile.displayName)}
+              </span>
+            </button>
+            {menuOpen && (
+              <>
+                <div className="menu-backdrop" onClick={() => setMenuOpen(false)} />
+                <div className="menu-pop">
+                  <div className="menu-head">
+                    <div className="menu-name">{profile.displayName}</div>
+                    <div className="menu-email">{profile.email}</div>
+                    <span className={`role-badge role-${profile.role}`}>
+                      {profile.role === "underwriter" ? "Underwriter" : "Applicant"}
+                    </span>
+                  </div>
+                  {isUnderwriter && (
+                    <button className="menu-item" onClick={resetSampleData}>
+                      Reset sample data
+                    </button>
+                  )}
+                  <button className="menu-item danger" onClick={() => signOut()}>
+                    Sign out
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
-      <main className="main">
-        <section className="hero">
-          <h1>
-            Underwriting,{" "}
-            <span className="glow">accelerated by an agent crew.</span>
-          </h1>
-          <p>
-            Paste your policy and the applicant&rsquo;s data. The orchestrator
-            routes the case through credit, affordability, collateral,
-            compliance, and escalation subagents — then returns a structured
-            recommendation in seconds.
-          </p>
+      <main className="main board-main">
+        <section className="board-hero">
+          <div>
+            <h1>
+              {isUnderwriter ? "Underwriting" : "Your applications"}{" "}
+              <span className="glow">pipeline.</span>
+            </h1>
+            <p>
+              {isUnderwriter
+                ? "Every applicant is a card. Drag between columns, or open one to run the agent crew and read the structured recommendation."
+                : "Track each application as it moves through review. Submit a new one any time."}
+            </p>
+          </div>
+          {isUnderwriter && (
+            <div className="board-stats">
+              <Stat n={stats.review} label="In review" accent="#7DEBFF" />
+              <Stat n={stats.approved} label="Approved" accent="#38f5a4" />
+              <Stat n={stats.declined} label="Declined" accent="#ff5b6b" />
+              <Stat n={stats.total} label="Total" accent="#c4ccd6" />
+            </div>
+          )}
         </section>
 
-        <section className="grid">
-          <div className="panel">
-            <div className="panel-head">
-              <div className="panel-title">
-                <span className="panel-title-bar" />
-                Underwriting Rules &amp; Guidelines
-              </div>
-              <div className="panel-sub">{rules.length.toLocaleString()} chars</div>
-            </div>
-            <div className="field-label">
-              <span>Paste your policy, thresholds, and program limits.</span>
-            </div>
-            <textarea
-              className="input"
-              placeholder="e.g. Credit score 740+: strong profile&#10;Max front-end PTI: 15%&#10;Max DTI after proposed auto loan: 50%&#10;Max LTV for used vehicles: 110%…"
-              value={rules}
-              onChange={(e) => setRules(e.target.value)}
-              spellCheck={false}
-            />
+        {listenError && (
+          <div className="error">
+            <strong>Connection issue</strong>
+            {listenError}
           </div>
+        )}
 
-          <div className="panel">
-            <div className="panel-head">
-              <div className="panel-title">
-                <span className="panel-title-bar" />
-                Applicant Data
-              </div>
-              <div className="panel-sub">{applicant.length.toLocaleString()} chars</div>
-            </div>
-            <div className="field-label">
-              <span>Credit, income, vehicle, loan structure, history.</span>
-            </div>
-            <textarea
-              className="input"
-              placeholder="e.g. Credit score: 642&#10;Monthly gross income: $5,200&#10;Existing monthly debt: $2,050&#10;Requested loan amount: $28,000…"
-              value={applicant}
-              onChange={(e) => setApplicant(e.target.value)}
-              spellCheck={false}
-            />
-          </div>
-        </section>
-
-        <div className="actions">
-          <button
-            className="btn btn-primary"
-            onClick={onSubmit}
-            disabled={!canSubmit}
-          >
-            {loading ? "Routing through subagents…" : "Run Underwriting Review"}
-          </button>
-          <button className="btn" onClick={loadSample} disabled={loading}>
-            Load sample case
-          </button>
-          <button className="btn btn-ghost" onClick={clearAll} disabled={loading}>
-            Clear
-          </button>
-        </div>
-
-        {loading && (
+        {seeding && (
           <div className="loading">
             <div className="loading-pulse" />
             <div className="loading-text">
-              <strong>Orchestrating the underwriting crew…</strong>
-              <span>
-                Credit · Affordability · Collateral · Policy · Fair Lending ·
-                Escalation
-              </span>
+              <strong>Preparing the sample dataset…</strong>
+              <span>Seeding applicants and underwriting rule presets into Firestore.</span>
             </div>
           </div>
         )}
 
-        {error && (
-          <div className="error">
-            <strong>Request failed</strong>
-            {error}
-          </div>
+        {isUnderwriter ? (
+          <KanbanBoard
+            applicants={filtered}
+            draggable
+            onOpen={setSelected}
+            onMove={onMove}
+          />
+        ) : (
+          <ApplicantPortal applicants={applicants} onOpen={setSelected} onNew={() => setCreateOpen(true)} />
         )}
-
-        {!loading && !error && !result && (
-          <div className="empty-state">
-            <div className="glyph">❋</div>
-            <div>
-              Submit a case to see the orchestrator&rsquo;s structured
-              recommendation.
-            </div>
-          </div>
-        )}
-
-        {result && <Result result={result} />}
       </main>
+
+      {createOpen && (
+        <CreateModal
+          role={profile.role}
+          uid={profile.uid}
+          rules={rules}
+          onClose={() => setCreateOpen(false)}
+        />
+      )}
+
+      {liveSelected && (
+        <ApplicantDetail
+          applicant={liveSelected}
+          role={profile.role}
+          uid={profile.uid}
+          rules={rules}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   );
 }
 
-function Result({ result }: { result: UnderwriteResponse }) {
-  const isYes = result.decision === "YES";
-
+function ApplicantPortal({
+  applicants,
+  onOpen,
+  onNew,
+}: {
+  applicants: Applicant[];
+  onOpen: (a: Applicant) => void;
+  onNew: () => void;
+}) {
+  if (applicants.length === 0) {
+    return (
+      <div className="empty-state">
+        <div className="glyph">❋</div>
+        <div>You haven&rsquo;t submitted an application yet.</div>
+        <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={onNew}>
+          Submit an application
+        </button>
+      </div>
+    );
+  }
   return (
-    <section className="result-section">
-      <div className={`verdict ${isYes ? "verdict-yes" : "verdict-no"}`}>
-        <div className="verdict-badge">
-          <div className="verdict-symbol">{result.decision}</div>
-          <div className="verdict-status">
-            Orchestrator status
-            <strong>{result.status}</strong>
-          </div>
-        </div>
-        <div className="verdict-body">
-          <h3>Summary</h3>
-          <p>{result.summary || "No summary provided."}</p>
-          {result.recommended_next_step && (
-            <div className="next-step">
-              <strong>Recommended next step</strong>
-              {result.recommended_next_step}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="cards">
-        <ListCard
-          title="Key Risk Factors"
-          items={result.key_risk_factors}
-          variant="risk"
+    <div className="portal-list">
+      {applicants.map((a) => (
+        <ApplicantCard
+          key={a.id}
+          applicant={a}
+          draggable={false}
+          dragging={false}
+          onOpen={onOpen}
+          onDragStart={() => {}}
+          onDragEnd={() => {}}
         />
-        <ListCard
-          title="Compensating Factors"
-          items={result.compensating_factors}
-          variant="comp"
-        />
-        <ListCard
-          title="Missing Information"
-          items={result.missing_information}
-          variant="missing"
-        />
-        <ListCard
-          title="Adverse Action Reasons"
-          items={result.adverse_action_reasons}
-          variant=""
-          emptyLabel={
-            isYes
-              ? "Not applicable — no adverse action."
-              : "None returned by the subagent."
-          }
-        />
-      </div>
-
-      {Object.keys(result.subagent_findings).length > 0 && (
-        <div className="findings">
-          <div className="panel-title" style={{ marginBottom: 12 }}>
-            <span className="panel-title-bar" />
-            Subagent Findings
-          </div>
-          <div className="findings-grid">
-            {SUBAGENT_ORDER.filter(
-              (k) => result.subagent_findings[k]
-            ).map((k) => (
-              <div key={k} className="finding">
-                <div className="finding-head">{k}</div>
-                <div className="finding-body">{result.subagent_findings[k]}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="disclaimer">
-        This is an underwriting-support recommendation only. Final credit
-        decisions must be made through the company&rsquo;s approved underwriting
-        process and applicable compliance review.
-      </div>
-
-      <details className="raw">
-        <summary>View raw orchestrator response</summary>
-        <pre>{result.raw_response}</pre>
-      </details>
-    </section>
+      ))}
+    </div>
   );
 }
 
-function ListCard({
-  title,
-  items,
-  variant,
-  emptyLabel,
-}: {
-  title: string;
-  items: string[];
-  variant: "risk" | "comp" | "missing" | "";
-  emptyLabel?: string;
-}) {
-  const className = `card${variant ? ` card-${variant}` : ""}`;
+function Stat({ n, label, accent }: { n: number; label: string; accent?: string }) {
   return (
-    <div className={className}>
-      <h4>{title}</h4>
-      {items.length > 0 ? (
-        <ul>
-          {items.map((it, i) => (
-            <li key={i}>{it}</li>
-          ))}
-        </ul>
-      ) : (
-        <div className="empty">{emptyLabel || "None reported."}</div>
-      )}
+    <div className="bstat" style={accent ? { ["--rail" as string]: accent } : undefined}>
+      <span className="bstat-n">{n}</span>
+      <span className="bstat-l">{label}</span>
     </div>
   );
 }

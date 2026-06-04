@@ -61,6 +61,10 @@ app.add_middleware(
 class UnderwriteRequest(BaseModel):
     rules: str = Field(..., description="Pasted underwriting rules & guidelines.")
     applicant: str = Field(..., description="Pasted applicant data.")
+    # Optional kanban linkage so the process_job trigger can move the card.
+    applicant_id: str | None = Field(default=None, description="applicants/{id} to update.")
+    rules_id: str | None = Field(default=None, description="Rule preset used.")
+    created_by: str | None = Field(default=None, description="uid that started the run.")
 
 
 class UnderwriteResponse(BaseModel):
@@ -302,12 +306,19 @@ async def underwrite(req: UnderwriteRequest) -> dict[str, str]:
         raise HTTPException(status_code=400, detail="Both rules and applicant data are required.")
 
     job_id = uuid.uuid4().hex
-    _db().collection(JOBS_COLLECTION).document(job_id).set({
+    job_doc: dict[str, Any] = {
         "status": "pending",
         "created_at": SERVER_TIMESTAMP,
         "rules": req.rules,
         "applicant": req.applicant,
-    })
+    }
+    if req.applicant_id and req.applicant_id.strip():
+        job_doc["applicant_id"] = req.applicant_id.strip()
+    if req.rules_id and req.rules_id.strip():
+        job_doc["rules_id"] = req.rules_id.strip()
+    if req.created_by and req.created_by.strip():
+        job_doc["created_by"] = req.created_by.strip()
+    _db().collection(JOBS_COLLECTION).document(job_id).set(job_doc)
     return {"job_id": job_id, "status": "pending"}
 
 
