@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { beginUnderwriting, type UnderwriteResponse } from "../api";
 import {
   deleteApplicant,
@@ -23,10 +23,20 @@ interface Props {
   role: Role;
   uid: string;
   rules: UnderwritingRule[];
+  /** A run already kicked off elsewhere (the Create modal handoff): show its
+   *  live crew console immediately and scroll down to it. */
+  initialJobId?: string | null;
   onClose: () => void;
 }
 
-export default function ApplicantDetail({ applicant: a, role, uid, rules, onClose }: Props) {
+export default function ApplicantDetail({
+  applicant: a,
+  role,
+  uid,
+  rules,
+  initialJobId,
+  onClose,
+}: Props) {
   const isUnderwriter = role === "underwriter";
 
   const defaultRule =
@@ -37,12 +47,50 @@ export default function ApplicantDetail({ applicant: a, role, uid, rules, onClos
   const [rulesText, setRulesText] = useState(defaultRule?.body ?? "");
 
   const [running, setRunning] = useState(false);
-  const [jobId, setJobId] = useState<string | null>(null);
+  const [jobId, setJobId] = useState<string | null>(initialJobId ?? null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<UnderwriteResponse | null>(null);
   const [loadingPrior, setLoadingPrior] = useState(false);
 
   const busy = running || jobId !== null;
+
+  // Smooth-scroll the drawer down to the live crew console when a run is handed
+  // in from the Create modal (or started here). We animate scrollTop by hand
+  // (driven off performance.now via a short interval) rather than leaning on
+  // scrollIntoView({behavior:"smooth"}) — native smooth scroll is silently
+  // dropped in some environments (headless, mid-layout) — so a manual tween
+  // guarantees the move actually happens. Reduced-motion users just jump.
+  const progressRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!jobId) return;
+    let tween: ReturnType<typeof setInterval> | undefined;
+    const startTimer = setTimeout(() => {
+      const el = progressRef.current;
+      const container = el?.closest(".drawer-body") as HTMLElement | null;
+      if (!el || !container) return;
+      const target = Math.max(
+        0,
+        container.scrollTop + el.getBoundingClientRect().top - container.getBoundingClientRect().top - 12
+      );
+      if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) {
+        container.scrollTop = target;
+        return;
+      }
+      const from = container.scrollTop;
+      const dist = target - from;
+      const dur = 560;
+      const t0 = performance.now();
+      tween = setInterval(() => {
+        const p = Math.min((performance.now() - t0) / dur, 1);
+        container.scrollTop = from + dist * (1 - Math.pow(1 - p, 3)); // easeOutCubic
+        if (p >= 1 && tween) clearInterval(tween);
+      }, 16);
+    }, 360); // let the drawer's slide-in settle first
+    return () => {
+      clearTimeout(startTimer);
+      if (tween) clearInterval(tween);
+    };
+  }, [jobId]);
 
   const accent = STAGE_BY_KEY[a.stage]?.accent ?? "#7DEBFF";
   const dti = dtiPct(a);
@@ -250,13 +298,15 @@ export default function ApplicantDetail({ applicant: a, role, uid, rules, onClos
           )}
 
           {jobId && !result && (
-            <UnderwritingProgress
-              jobId={jobId}
-              applicant={a}
-              rulesName={rules.find((r) => r.id === selectedRuleId)?.name}
-              onDone={onProgressDone}
-              onError={onProgressError}
-            />
+            <div ref={progressRef}>
+              <UnderwritingProgress
+                jobId={jobId}
+                applicant={a}
+                rulesName={rules.find((r) => r.id === selectedRuleId)?.name}
+                onDone={onProgressDone}
+                onError={onProgressError}
+              />
+            </div>
           )}
 
           {error && (

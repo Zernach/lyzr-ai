@@ -49,6 +49,9 @@ function Dashboard({ profile }: { profile: UserProfile }) {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [selected, setSelected] = useState<Applicant | null>(null);
+  // When a run is launched from the Create modal we stash its jobId so the
+  // ticket drawer that opens next picks the live crew console straight up.
+  const [runJobId, setRunJobId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [seeding, setSeeding] = useState(false);
@@ -129,6 +132,17 @@ function Dashboard({ profile }: { profile: UserProfile }) {
     setApplicantStage(id, stage).catch((e) =>
       setListenError(e instanceof Error ? e.message : String(e))
     );
+  };
+
+  // Opening a card normally carries no jobId; the Create-modal handoff passes
+  // the live one so the drawer scrolls straight to the running crew console.
+  const openDrawer = (a: Applicant, jobId: string | null = null) => {
+    setSelected(a);
+    setRunJobId(jobId);
+  };
+  const closeDrawer = () => {
+    setSelected(null);
+    setRunJobId(null);
   };
 
   const resetSampleData = async () => {
@@ -252,11 +266,11 @@ function Dashboard({ profile }: { profile: UserProfile }) {
           <KanbanBoard
             applicants={filtered}
             draggable
-            onOpen={setSelected}
+            onOpen={openDrawer}
             onMove={onMove}
           />
         ) : (
-          <ApplicantPortal applicants={applicants} onOpen={setSelected} onNew={() => setCreateOpen(true)} />
+          <ApplicantPortal applicants={applicants} onOpen={openDrawer} onNew={() => setCreateOpen(true)} />
         )}
       </main>
 
@@ -266,16 +280,22 @@ function Dashboard({ profile }: { profile: UserProfile }) {
           uid={profile.uid}
           rules={rules}
           onClose={() => setCreateOpen(false)}
+          onRunStarted={(applicant, jobId) => {
+            setCreateOpen(false);
+            openDrawer(applicant, jobId);
+          }}
         />
       )}
 
       {liveSelected && (
         <ApplicantDetail
+          key={liveSelected.id}
           applicant={liveSelected}
           role={profile.role}
           uid={profile.uid}
           rules={rules}
-          onClose={() => setSelected(null)}
+          initialJobId={runJobId}
+          onClose={closeDrawer}
         />
       )}
     </div>
