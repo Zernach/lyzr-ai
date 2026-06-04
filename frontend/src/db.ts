@@ -313,6 +313,48 @@ export async function getJobResult(
   return d.status === "done" ? (d.result ?? null) : null;
 }
 
+export type JobStatus = "pending" | "running" | "done" | "error" | "missing";
+
+export interface JobSnapshot {
+  status: JobStatus;
+  /** Parsed UnderwriteResponse once `done`. */
+  result?: Record<string, any> | null;
+  /** Failure detail once `error`. */
+  detail?: string;
+  createdAt?: number;
+}
+
+/** Live subscription to a single underwriting job. The backend Cloud Function
+ *  (firebase/main.py `process_job`) writes the status transitions
+ *  pending → running → done|error and the final result onto this doc; the
+ *  browser only reads. The loading view watches this instead of HTTP-polling
+ *  the backend `/api/jobs/{id}` endpoint — a long poll across the ~4-minute run
+ *  can 500 on cold starts, whereas this realtime listener simply rides the
+ *  backend's own Firestore writes. */
+export function listenJob(
+  jobId: string,
+  cb: (job: JobSnapshot) => void,
+  onErr?: (e: Error) => void
+): Unsubscribe {
+  return onSnapshot(
+    doc(db, JOBS, jobId),
+    (snap: any) => {
+      if (!snap.exists()) {
+        cb({ status: "missing" });
+        return;
+      }
+      const d = snap.data() as Record<string, any>;
+      cb({
+        status: (d.status as JobStatus) ?? "pending",
+        result: d.result ?? null,
+        detail: typeof d.detail === "string" ? d.detail : undefined,
+        createdAt: ts(d.created_at) ?? ts(d.createdAt),
+      });
+    },
+    (e: any) => onErr?.(e as Error)
+  );
+}
+
 /** Delete every doc in a collection (used by "Reset sample data"). Firestore
  *  has no truncate, so we read ids and batch-delete. Fine at demo scale. */
 export async function clearCollection(name: string): Promise<void> {

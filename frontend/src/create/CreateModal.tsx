@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
-import { underwrite, type UnderwriteResponse } from "../api";
-import { createApplicant, stageForDecision, updateApplicant } from "../db";
+import { startUnderwrite, type UnderwriteResponse } from "../api";
+import { createApplicant, updateApplicant } from "../db";
 import { SAMPLE_APPLICANT, SAMPLE_RULES } from "../samples";
 import type { ApplicantDraft, Priority, Role, UnderwritingRule } from "../types";
 import UnderwriteResult from "../UnderwriteResult";
+import UnderwritingProgress, { type ProgressApplicant } from "../UnderwritingProgress";
 
 interface Props {
   role: Role;
@@ -76,9 +77,15 @@ export default function CreateModal({ role, uid, rules, onClose, onCreated }: Pr
   const [applicantData, setApplicantData] = useState("");
 
   const [running, setRunning] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<UnderwriteResponse | null>(null);
   const [createdId, setCreatedId] = useState<string | null>(null);
+
+  // "busy" = a run is in flight, from the moment we hit Create until the crew
+  // returns a decision (or errors). jobId being set means the Firestore-watched
+  // progress view is on screen.
+  const busy = running || jobId !== null;
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -86,6 +93,28 @@ export default function CreateModal({ role, uid, rules, onClose, onCreated }: Pr
   const estPayment = useMemo(
     () => calcPayment(num(form.requestedAmount), num(form.estimatedApr), num(form.loanTermMonths)),
     [form.requestedAmount, form.estimatedApr, form.loanTermMonths]
+  );
+
+  const progressApplicant = useMemo<ProgressApplicant>(
+    () => ({
+      fullName: form.fullName.trim() || undefined,
+      creditScore: num(form.creditScore),
+      monthlyIncome: num(form.monthlyIncome),
+      monthlyDebt: num(form.monthlyDebt),
+      requestedAmount: num(form.requestedAmount),
+      downPayment: num(form.downPayment),
+      vehicle: {
+        year: num(form.vYear),
+        make: form.vMake.trim() || undefined,
+        model: form.vModel.trim() || undefined,
+        mileage: num(form.vMileage),
+        value: num(form.vValue),
+      },
+      loanTermMonths: num(form.loanTermMonths),
+      estimatedApr: num(form.estimatedApr),
+      estimatedMonthlyPayment: estPayment,
+    }),
+    [form, estPayment]
   );
 
   const onPickRule = (id: string) => {
@@ -200,7 +229,11 @@ export default function CreateModal({ role, uid, rules, onClose, onCreated }: Pr
     }
   };
 
-  // Underwriter: create the card AND run the agent crew, showing the result.
+  // Underwriter: create the card AND launch the agent crew. We only START the
+  // job here (a quick POST); the live progress view then watches the Firestore
+  // job doc to completion. The backend's process_job mirrors the decision +
+  // stage onto the card via the Admin SDK, so we deliberately don't write those
+  // back from here — the board's live listener reflects them.
   const onCreateAndRun = async () => {
     setError(null);
     setResult(null);
@@ -219,32 +252,31 @@ export default function CreateModal({ role, uid, rules, onClose, onCreated }: Pr
       } else {
         await updateApplicant(id, { stage: "underwriting" });
       }
-      const res = await underwrite(rulesText, data, {
+      const jid = await startUnderwrite(rulesText, data, {
         applicantId: id,
         rulesId: selectedRuleId || undefined,
         createdBy: uid,
-        onJobStarted: (jobId) => {
-          if (id) void updateApplicant(id, { latestJobId: jobId });
-        },
       });
-      setResult(res);
-      // Mirror the decision onto the card (the backend also does this; whichever
-      // lands first, the board reflects it via its live listener).
-      if (id) {
-        await updateApplicant(id, {
-          decision: res.decision,
-          decisionStatus: res.status,
-          decisionSummary: res.summary,
-          stage: stageForDecision(res.decision, res.status),
-        });
-      }
+      if (id) void updateApplicant(id, { latestJobId: jid });
+      setJobId(jid);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-      // Park the card in manual review so it isn't stuck spinning.
+      // Couldn't even start — park the card so it isn't stuck spinning.
       if (id) void updateApplicant(id, { stage: "manual_review" });
     } finally {
       setRunning(false);
     }
+  };
+
+  const onProgressDone = (res: UnderwriteResponse) => {
+    setJobId(null);
+    setResult(res);
+  };
+
+  const onProgressError = (message: string) => {
+    setJobId(null);
+    setError(message);
+    // process_job already parks the card in manual_review on a backend failure.
   };
 
   return (
@@ -384,14 +416,24 @@ export default function CreateModal({ role, uid, rules, onClose, onCreated }: Pr
             )}
           </div>
 
-          {running && (
+          {running && !jobId && (
             <div className="loading">
               <div className="loading-pulse" />
               <div className="loading-text">
-                <strong>Orchestrating the underwriting crew…</strong>
-                <span>Credit · Affordability · Collateral · Policy · Fair Lending · Escalation</span>
+                <strong>Dispatching the case to the orchestrator…</strong>
+                <span>Opening a secure channel to the agent crew</span>
               </div>
             </div>
+          )}
+
+          {jobId && !result && (
+            <UnderwritingProgress
+              jobId={jobId}
+              applicant={progressApplicant}
+              rulesName={rules.find((r) => r.id === selectedRuleId)?.name}
+              onDone={onProgressDone}
+              onError={onProgressError}
+            />
           )}
 
           {error && (
@@ -418,16 +460,16 @@ export default function CreateModal({ role, uid, rules, onClose, onCreated }: Pr
             </button>
             {isUnderwriter ? (
               <>
-                <button className="btn" onClick={onAddToBoard} disabled={running} type="button">
+                <button className="btn" onClick={onAddToBoard} disabled={busy} type="button">
                   Add to board
                 </button>
-                <button className="btn btn-primary" onClick={onCreateAndRun} disabled={running} type="button">
-                  {running ? "Running…" : result ? "Re-run" : "Create & Run Underwriting"}
+                <button className="btn btn-primary" onClick={onCreateAndRun} disabled={busy} type="button">
+                  {busy ? "Running…" : result ? "Re-run" : "Create & Run Underwriting"}
                 </button>
               </>
             ) : (
-              <button className="btn btn-primary" onClick={onSubmitApplication} disabled={running} type="button">
-                {running ? "Submitting…" : "Submit application"}
+              <button className="btn btn-primary" onClick={onSubmitApplication} disabled={busy} type="button">
+                {busy ? "Submitting…" : "Submit application"}
               </button>
             )}
           </div>

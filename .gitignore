@@ -1,5 +1,42 @@
+# ─── OS / editor cruft ────────────────────────────────────────────────
 .DS_Store
-./node_modules/
-node_modules/
-.firebase/
 *.log
+
+# ─── Dependencies ─────────────────────────────────────────────────────
+node_modules/
+
+# ─── Secrets & local environment ──────────────────────────────────────
+# Never commit real credentials. Only *.example templates (with placeholder
+# values) belong in git — the negation below keeps those tracked.
+.env
+.env.*
+!.env.example
+.dev.vars
+*.local
+
+# Service-account / private keys (Firebase Admin, GCP, TLS, SSH, etc.)
+*serviceAccount*.json
+*-firebase-adminsdk-*.json
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+
+# ─── Python (backend / firebase functions) ────────────────────────────
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# ─── Build output / tooling caches ────────────────────────────────────
+dist/
+.vite/
+.wrangler/
+.firebase/
+
+# ─── Generated at deploy time (scripts/deploy_backend.sh) ─────────────
+firebase/_backend/
+firebase/requirements.txt

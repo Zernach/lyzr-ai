@@ -18,15 +18,6 @@ interface StartJobResponse {
   status: string;
 }
 
-interface JobStatusResponse {
-  status: "pending" | "running" | "done" | "error";
-  result?: UnderwriteResponse;
-  detail?: string;
-}
-
-const POLL_INTERVAL_MS = 2000;
-const MAX_POLL_ATTEMPTS = 600; // ~20 minutes
-
 async function readDetail(res: Response, fallback: string): Promise<string> {
   try {
     const body = await res.json();
@@ -44,16 +35,24 @@ export interface UnderwriteOptions {
   rulesId?: string;
   /** uid of whoever kicked off the run. */
   createdBy?: string;
-  /** Fired with the job id as soon as the run is accepted (202). */
-  onJobStarted?: (jobId: string) => void;
 }
 
-export async function underwrite(
+/**
+ * Kick off an underwriting run and return the job id immediately.
+ *
+ * The only backend HTTP call in the whole flow: it POSTs the case, the backend
+ * writes a `pending` job doc and returns. From there the agent crew runs
+ * server-side in the `process_job` Cloud Function (up to ~9 min) and writes its
+ * status + result back onto `underwriting_jobs/{jobId}`. The client watches
+ * that doc live via `listenJob` (see UnderwritingProgress) — no long-lived HTTP
+ * poll that could 500 mid-run.
+ */
+export async function startUnderwrite(
   rules: string,
   applicant: string,
   opts: UnderwriteOptions = {}
-): Promise<UnderwriteResponse> {
-  const startRes = await fetch(`${BACKEND_URL}/api/underwrite`, {
+): Promise<string> {
+  const res = await fetch(`${BACKEND_URL}/api/underwrite`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -65,34 +64,11 @@ export async function underwrite(
     }),
   });
 
-  if (!startRes.ok) {
-    throw new Error(await readDetail(startRes, `Request failed (${startRes.status})`));
+  if (!res.ok) {
+    throw new Error(await readDetail(res, `Request failed (${res.status})`));
   }
 
-  const { job_id } = (await startRes.json()) as StartJobResponse;
-  opts.onJobStarted?.(job_id);
-
-  for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-
-    const pollRes = await fetch(`${BACKEND_URL}/api/jobs/${job_id}`);
-    if (!pollRes.ok) {
-      if (pollRes.status === 404) {
-        throw new Error("Job expired before completing.");
-      }
-      // 5xx / transient — keep polling
-      continue;
-    }
-
-    const body = (await pollRes.json()) as JobStatusResponse;
-    if (body.status === "done" && body.result) {
-      return body.result;
-    }
-    if (body.status === "error") {
-      throw new Error(body.detail || "Underwriting job failed.");
-    }
-    // pending | running — keep polling
-  }
-
-  throw new Error("Timed out waiting for underwriting result.");
+  const { job_id } = (await res.json()) as StartJobResponse;
+  if (!job_id) throw new Error("Backend did not return a job id.");
+  return job_id;
 }

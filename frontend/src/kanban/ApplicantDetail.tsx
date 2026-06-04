@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { underwrite, type UnderwriteResponse } from "../api";
+import { startUnderwrite, type UnderwriteResponse } from "../api";
 import {
   deleteApplicant,
   getJobResult,
   setApplicantStage,
-  stageForDecision,
   updateApplicant,
 } from "../db";
 import { avatarColor, dtiPct, initials, ltvPct, money } from "../format";
@@ -17,6 +16,7 @@ import {
   type UnderwritingRule,
 } from "../types";
 import UnderwriteResult from "../UnderwriteResult";
+import UnderwritingProgress from "../UnderwritingProgress";
 
 interface Props {
   applicant: Applicant;
@@ -37,9 +37,12 @@ export default function ApplicantDetail({ applicant: a, role, uid, rules, onClos
   const [rulesText, setRulesText] = useState(defaultRule?.body ?? "");
 
   const [running, setRunning] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<UnderwriteResponse | null>(null);
   const [loadingPrior, setLoadingPrior] = useState(false);
+
+  const busy = running || jobId !== null;
 
   const accent = STAGE_BY_KEY[a.stage]?.accent ?? "#7DEBFF";
   const dti = dtiPct(a);
@@ -76,6 +79,10 @@ export default function ApplicantDetail({ applicant: a, role, uid, rules, onClos
     }
   };
 
+  // Only START the run here; the live progress view watches the Firestore job
+  // doc to completion. The backend's process_job mirrors decision + stage onto
+  // the card via the Admin SDK (the board's listener reflects it), so we don't
+  // write those back from the client.
   const onRun = async () => {
     setError(null);
     setResult(null);
@@ -84,25 +91,30 @@ export default function ApplicantDetail({ applicant: a, role, uid, rules, onClos
     setRunning(true);
     try {
       await setApplicantStage(a.id, "underwriting");
-      const res = await underwrite(rulesText, a.applicantData, {
+      const jid = await startUnderwrite(rulesText, a.applicantData, {
         applicantId: a.id,
         rulesId: selectedRuleId || undefined,
         createdBy: uid,
-        onJobStarted: (jobId) => void updateApplicant(a.id, { latestJobId: jobId }),
       });
-      setResult(res);
-      await updateApplicant(a.id, {
-        decision: res.decision,
-        decisionStatus: res.status,
-        decisionSummary: res.summary,
-        stage: stageForDecision(res.decision, res.status),
-      });
+      void updateApplicant(a.id, { latestJobId: jid });
+      setJobId(jid);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       void updateApplicant(a.id, { stage: "manual_review" });
     } finally {
       setRunning(false);
     }
+  };
+
+  const onProgressDone = (res: UnderwriteResponse) => {
+    setJobId(null);
+    setResult(res);
+  };
+
+  const onProgressError = (message: string) => {
+    setJobId(null);
+    setError(message);
+    // process_job already parks the card in manual_review on a backend failure.
   };
 
   const onDelete = async () => {
@@ -216,8 +228,8 @@ export default function ApplicantDetail({ applicant: a, role, uid, rules, onClos
                   </option>
                 ))}
               </select>
-              <button className="btn btn-primary drawer-run" onClick={onRun} disabled={running}>
-                {running ? "Routing through subagents…" : result ? "Re-run underwriting" : "Run underwriting"}
+              <button className="btn btn-primary drawer-run" onClick={onRun} disabled={busy}>
+                {busy ? "Routing through subagents…" : result ? "Re-run underwriting" : "Run underwriting"}
               </button>
             </div>
           )}
@@ -227,14 +239,24 @@ export default function ApplicantDetail({ applicant: a, role, uid, rules, onClos
             <pre>{a.applicantData || "(empty)"}</pre>
           </details>
 
-          {running && (
+          {running && !jobId && (
             <div className="loading">
               <div className="loading-pulse" />
               <div className="loading-text">
-                <strong>Orchestrating the underwriting crew…</strong>
-                <span>Credit · Affordability · Collateral · Policy · Fair Lending · Escalation</span>
+                <strong>Dispatching the case to the orchestrator…</strong>
+                <span>Opening a secure channel to the agent crew</span>
               </div>
             </div>
+          )}
+
+          {jobId && !result && (
+            <UnderwritingProgress
+              jobId={jobId}
+              applicant={a}
+              rulesName={rules.find((r) => r.id === selectedRuleId)?.name}
+              onDone={onProgressDone}
+              onError={onProgressError}
+            />
           )}
 
           {error && (
